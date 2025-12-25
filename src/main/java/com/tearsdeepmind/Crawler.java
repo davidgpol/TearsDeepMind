@@ -21,6 +21,9 @@ import java.time.format.DateTimeFormatter;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 @Service
 public class Crawler {
@@ -138,6 +141,7 @@ public class Crawler {
     protected void crawlAndExtractData(WebDriver driver, Path outputPath, WebDriverWait wait) {
         System.out.println("Iniciando crawling y extracción de datos...");
         Set<String> visitedThreadUrls = new HashSet<>();
+        ExecutorService executor = Executors.newFixedThreadPool(5); // Adjust pool size as needed
 
         try {
             // Navigate to the specific section after login
@@ -145,7 +149,7 @@ public class Crawler {
             driver.get(sectionUrl);
             System.out.println("Navegando a la sección: " + sectionUrl);
             wait.until(ExpectedConditions.urlContains(sectionUrl));
-            Thread.sleep(3000); // Give some time for dynamic content to load
+            // Removed Thread.sleep(3000); as WebDriverWait should be sufficient
 
             // 2. Find all potential thread links on the current page
             // Wait for the feed-list container to be visible
@@ -174,18 +178,43 @@ public class Crawler {
                 }
 
                 visitedThreadUrls.add(threadUrl);
-                
-                // Process thread sequentially
-                processThread(driver, outputPath, wait, threadUrl, sectionUrl);
+                final String currentThreadUrl = threadUrl;
+
+                executor.submit(() -> {
+                    WebDriver threadDriver = null;
+                    try {
+                        threadDriver = webDriverFactory.createWebDriver(); // Create a new WebDriver for each thread
+                        WebDriverWait threadWait = new WebDriverWait(threadDriver, Duration.ofSeconds(20));
+                        processThread(threadDriver, outputPath, threadWait, currentThreadUrl, sectionUrl);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        System.err.println("Thread processing interrupted for URL: " + currentThreadUrl);
+                    } finally {
+                        if (threadDriver != null) {
+                            threadDriver.quit(); // Ensure WebDriver is closed
+                        }
+                    }
+                });
 
                 threadsProcessed++; // Increment the counter
             }
 
-            System.out.println("Extracción de datos completada.");
+            System.out.println("Extracción de datos completada. Shutting down thread pool...");
 
         } catch (Exception e) {
             System.err.println("Error durante el crawling: " + e.getMessage());
             e.printStackTrace();
+        } finally {
+            executor.shutdown();
+            try {
+                if (!executor.awaitTermination(60, TimeUnit.SECONDS)) {
+                    executor.shutdownNow();
+                }
+            } catch (InterruptedException ex) {
+                executor.shutdownNow();
+                Thread.currentThread().interrupt();
+            }
+            System.out.println("Thread pool shut down.");
         }
     }
 
@@ -195,7 +224,7 @@ public class Crawler {
 
         // Wait for the thread detail page to load
         wait.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector("body"))); // Wait for body to be visible
-        Thread.sleep(2000); // Give some time for content to render
+        // Removed Thread.sleep(2000); as WebDriverWait should be sufficient
 
         String threadTitle = "No Title Found";
         String threadContent = "";
@@ -232,9 +261,10 @@ public class Crawler {
             System.err.println("Error al guardar el hilo " + threadTitle + ": " + e.getMessage());
             e.printStackTrace();
         }
-        driver.navigate().back(); // Go back to the list of threads
+        // Navigate back to the section page to continue processing other threads
+        driver.get(sectionUrl);
         wait.until(ExpectedConditions.urlContains(sectionUrl)); // Wait for the section page to load again
-        Thread.sleep(2000); // Give some time for the page to render
+        // Removed Thread.sleep(2000); as WebDriverWait should be sufficient
     }
     // Helper method to sanitize filenames
     private String sanitizeFilename(String name) {
