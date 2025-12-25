@@ -1,0 +1,94 @@
+URL: https://tradingedge.club/posts/market-analysis-2412
+
+Título: Market Analysis 24/12
+
+Contenido:
+Housekeeping: When I announced the launch of the live unusual flow feed on the data site, I was surprised when many commented that they didn't even know the data tools site existed! This is one of the things I have been working hard to improve for the community, and every Trading Edge member has access to it. 
+I will share more education on it in time, but there are so many useful data analysis tools that I personally had built for myself to use and by extension all of you as well, to aid my analysis. And it is being improved constantly with more and more updates every month. 
+The link is: https://tools.tradingedge.club
+The password is GoWithTheFlow but I am aware there's some unauthorised access, so actual account logins linked to your Mighty nEtworks Trading Edge account are ready to be launched to police this. For now, you can still use the password posted here. 
+Go and check it out and share feedback, good or bad! 
+Anyway, let's get into it:
+GDP numbers yesterday came in far stronger than expected, with real GDP up 4.3% vs expectations of 3.3%, and last quarter’s reading of 3.8%. 
+GDP price index also came in far stronger than expected, up 3.7% vs 2.7% expected, and 2.1% last quarter. 
+Frankly, a strong GDP  reading can hardly be considered a surprise, when we look at how cyclical stocks have been performing in the market. Clearly, they have ben able to sniff out the economic strength amidst recent rate cuts, with copper at multi year highs, financials at the highs and transportation stocks performing well. These real economy names have been leading market strength of late, but I must say that the extent of the beat did catch me off guard. 
+Whilst everyone knows the headline numbers, let’s dig into the inner details a little.  
+Looking at which components of GDP drove the beat, we see that it was mostly net exports (as a result of the weak dollar) and personal consumption that drove the beat, whilst private inventories remained a drag. 
+Image link incase zoom isn't working (I believe if you uninstall and reinstall the app, it should again):https://postimg.cc/jDCgYyJV
+Looking at the consumption element, there has been a lot of concern recently that much of the economy’s consumption has come from AI related spend. 
+This was certainly the case in Q1 2025, where AI related investment came in positive, whilst other sectors were actually negative. 
+However this quarter was totally different, as we see in the chart below:
+https://postimg.cc/3WBnytgg
+Looking at the chart below, the annualised rate of change in AI investments slowed back to recent baseline. That’s not a concern for the AI industry, as it is only a return to recent baseline, but it does push back on the suggestion that AI is the only thing propping up the economy. 
+https://postimg.cc/HVvzzjv6
+In fact, total investment in computers & software contributed only 0.3% to the 4.3% GDP growth in Q3. Clearly, the print was more robust than that. 
+Looking below, we saw that all but 2 of the categories were positive, with a massive explosion in healthcare spending. 
+https://postimg.cc/PpHQJDJV
+https://postimg.cc/n9cKYtv3
+It is worth noting that a non insignificant portion of last quarter’s GDP upside came from the net exports category as a result of falling inputs. This provides a mechanical boost to GDP and is probably putting a bit of an extra shine on the print. 
+A cleaner read of the underlying demand is probably final sales to private domestic  purchases, which still came in at a very robust 3.0% (actually the strongest read in a year), but was meaningfully lower than the 4.3% reported.
+There is also price data that is released with the GDP print and we also had some data from the quarterly PCE numbers. 
+The GDP deflator, measures the change in prices of final goods and services and it is considered as a key indicator for inflationary pressures, that can give some insight into future monetary policy decisions.
+Yesterday, it came in WAY ahead of expectations at 3.7% vs 2.7% expected. 
+The PCE numbers that accompanied it came out in line, but accelerated vs Q2 to 2.8% vs 2.1% last quarter, and core came in at 2.9% vs 2.6% last quarter. 
+IF we refer back to our 4 scenarios discussed for the GDP in our week ahead post, we see that we came in then at the Higher GDP and higher prices outcome. 
+Here is what I wrote regarding this scenario:
+Higher GDP and higher prices may see an initial drop, but again, not a bad outcome, since we know the Fed is currently dismissing inflation concerns as temporary. 
+This is pretty much what we saw as US500 fell to 6860 in premarket, before stabilising and pushing higher. 
+The headline growth was stronger than I anticipated it would be, but the 3% domestic purchases is probably a more appropriate read. The price data came in much stronger than I anticipated. 
+Overall, it was a good print for the economy, but wasn’t the best print for the market, as such robust growth, coupled with higher GDP Deflator numbers doesn’t exactly pressure the Fed to cut. With growth so strong, the Fed may now feel they have room to pause at the January meeting, and this is what the market priced in, with odds of a January rate cut falling from 18% to 13%. 
+https://postimg.cc/w30Qx7zH
+It’s a pretty mixed picture of data for the Fed right now, in terms of making a decision in January.
+Unemployment rate rose to a cycle high of 4.6%, yet GDP growth came in much stronger than expected. CPI came in way below expectations, whilst GDP Deflator came in way ahead of expectations. There’s not enough clarity right now for the fed to really lean either way, and in such a scenario, and with the Fed rate already close to neutral, the argument is that the Fed will pause. 
+Going into the GDP print, I had the odds of a rate cut in January at around 50/50. After the GDP print, I concede that the odds of a January rate cut have now fallen, but in my opinion, are still much higher than 13%. At 13%, the market its pretty much fully pricing a pause. But in my opinion, the Fed will likely place more weight on the rising unemployment rate than yesterday’s GDP reading. The final decision in January will come down to next month’s NFP data ahead of the FOMC. If the unemployment rate rises again, then the door to a rate cut remains very much open, and we may see that being repriced to the tune of higher equity prices. 
+Nonetheless, with the odds of a rate cut pared, we saw weakness in small caps and rate sensitive/ high beta growth areas of the market. 
+IWM for instance was down 0.6% on the day, whilst SPX was up 0.46%. MEME (a basket which captures retail growth names like OKLO, RGTI, ONDS etc) fell 3%. Bitcoin was also red. 
+If we look at the table below, we see that money rotated into profitable tech and away from the heavily shorted basket. 
+https://postimg.cc/TKWVc0DY
+One thing that I found quite surprising yesterday is that with such a strong GDP print, and with rate cut odds being pared, one might have anticipated the dollar to move higher, but that was not so as the dollar plunged further. I think this, essentially, speaks to just how weak sentiment is around the dollar right now. 
+Whilst the performance of individual tickers varied, SPX was able to grind higher on the day. That really was a bit of a surprise, as with rate cut odds falling, I might have expected SPX to pull back further before finding its feet. 
+THe reasons why this didn’t happen are simple:
+NVDA propped things up with their 3% move on stock specific news. 
+The odds of a rate cut were already considered an outside chance, so there wasn’t a massive change. They just got more outside. 
+Finally, there was this very suspicious Iron condor in place yesterday. 
+I didn’t see it at the time of my write up yesterday, but there was a large iron condor at 6850/6855 -6900/6905. The size was large, very large in fact, sufficient in truth to be considered market manipulation. 
+There is genuinely a case to be made that the condor was deliberately placed by the administration in order to prop up price action, in the case that the market reacted negatively to the strength of the GDP date. 
+We saw Trump reference this closely in his after hours tweet, where he stated that he doesn't like the way market participants seem to interpret strong growth news as likely to remove, at the margins, the impetus for deeper or faster interest rate cuts. 
+https://postimg.cc/bDLkvFKw
+It seems Trump is fully aware of the fact that the market is pricing Good news as bad news, and so it is not beyond the realms of reality to suggest that the administration placed this condor to control price action and to stop a correction lower. 
+Those who don’t think this kind of manipulation occurs are frankly a bit naive, and especially with Bessent under Trump’s administration. 
+The real kicker in that Trump tweet, the thing I am focusing on most, is that last line: "Anybody that disagrees with me will never be the Fed chairman."
+What Trump is essentially saying here is that he wants a fed chair who will still cut rates even when the economy is doing well. Trump knows that the administration is going to run it ver hot through extremely aggressive fiscal impulse next year, in a bid to get his approval ratings out of the gutter ahead of the midterms. This will give GDP an artificial boost. 
+Nonetheless, he still wants rate cuts. As such, it is important for Trump to find a chair who will still cut into strength, as many, wouldn’t;, and this is what he is referencing in that tweet. 
+The implications of that final sentence are quite far reaching to be honest. The implication is that we will get rate cuts if data is good, and rate cuts if data is bad. Overall, we are looking at more rate cuts next year, more accommodative monetary policy and ultimately more dollar debasement. 
+The market was also propped up yesterday but comments from Bessent.
+Here, he said:
+BESSENT: SUGGESTS THE FED REVISE ITS 2% INFLATION TARGET TO 1.5%–2.5% OR 1%–3%
+This builds on comments Bessent made the day before, where he stated on the November CPI:
+"I actually think it was a pretty accurate number.”. “Every Wall Street predictor in Bloomberg was wrong. So what do you do when you’re wrong? You blame the measurement, you blame the data."
+This directly pushed back on comments from Fed govneror Hammack, who said on Monday that she thinks last week’s CPI report was closer to 2.9%-3.0% after accounting for shutdown-led survey distortions. 
+Again, the timing of these comments from Bessent were likely not a coincidence. His comments on the inflation target revision are especially important. He is basically saying that the Fed should revise the inflation target to allow for more leniency on inflation and essentially looser monetary policy. 
+This might just be Bessent’s view, but we know in the push for Warsh, that Bessent does have pull with the Fed chair appointment. Whilst no formal announcement on a change of inflation target is ever likely as it would damage Fed credibility, we can assume that the Fed chair will be viewing inflation through this lens: That there is a window of acceptability, which extends above 2%.
+Regardless of all of this speculation, what really matters here are those liquidity zones:  
+Here, we see that buyers broke out of the upside pivot. We are now looking for a consolidation there into the end of the week, but buyers clearly are trying to push their advantage on the tape. 
+https://postimg.cc/V5LXhmCX
+The distance to the liquidity zone has widened, so much so that sellers are pretty much sitting out right now whilst buyers have their time at the table (imagining an 8 ball pool analogy). 
+Higher prices seems the path of least resistance, albeit with some volatility along the way. 
+Looking at today, we see an iron condor in place between 6885/6890-6920/6925. 
+That's about as tight as it gets. The IC whale is essentially betting on a flat as a pancake session in the half day today. 
+https://postimg.cc/D8RsmGM3
+Whether or not we break it or not, the expectation is that we have a pretty flat day of price action, with very little volume. 
+VIX is currently sitting at just 14. At these levels, as mentioned, it is hard to argue that VIX is going to head meaningfully lower. We are already so low, but if we look at the positioning chart, we see that the path higher is one with lots of resistance, as shown by all of the put delta ITM. 
+The argument that I am seeing a fair bit is that “with VIX so low, now is the time to hedge”. 
+Whilst I understand the sentiment, technically, the data doesn’t speak in that way. Historically when VIX is low, S&P500 forward returns are actually compound. Within this 13 - 17 range that we are currently trading, the annualized  SPX returns average +31%.
+This amplifies as VIX falls lower. 
+https://postimg.cc/DmJw0NkW
+As such, there is no reason to say that because VIX is trading low, SPX cannot go much higher. The data doesn’t really support that. 
+And looking at the AD lines, that seems to be supported, as SPX< DOW and Nasdaq A/D lines (Which signal breadth) trade at all time highs. 
+Despite this, Nasdsaq still trades a little way off ATHs, and Dow is marginally off as well. 
+Typically, breadth leads price, and when the A/D line is at ATHs, price tends to follow. 
+We see that bullish divergence in breadth on Nasdaq below:
+https://postimg.cc/HVbW47Ld
+The more likely argument is for Nasdaq to push higher. 
+Anyway, today will probably be a flat low volume day. I want to take this opportunity to just wish all a Merry Christmas and to thank you all for being a part of this community. It's really awesome to see it grow and it see what has essentially come out of a reddit page a few years ago.
+Hope you guys have an awesome day off tomorrow.
