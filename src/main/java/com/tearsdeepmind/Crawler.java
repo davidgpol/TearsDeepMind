@@ -40,9 +40,28 @@ public class Crawler {
     private String driverPath;
 
     private WebDriver driver;
+    private ChromeOptions options = createChromeOptions();
 
-    @PostConstruct
-    public void startCrawling() {
+    protected WebDriver createWebDriver() {
+        System.setProperty("webdriver.chrome.driver", Paths.get(driverPath).toAbsolutePath().toString());
+        return new ChromeDriver(options);
+    }
+
+    private ChromeOptions createChromeOptions() {
+        ChromeOptions options = new ChromeOptions();
+        options.addArguments("--disable-blink-features=AutomationControlled");
+        options.addArguments("--disable-extensions");
+        options.addArguments("--disable-dev-shm-usage");
+        options.addArguments("--no-sandbox");
+        // options.addArguments("--headless"); // Uncomment to run without opening a browser window
+        return options;
+    }
+
+    public void initializeAndStart() {
+        startCrawling(createWebDriver());
+    }
+
+    public void startCrawling(WebDriver driver) {
         System.out.println("Crawler iniciado con Selenium.");
         System.out.println("Usuario: " + email);
 
@@ -55,7 +74,9 @@ public class Crawler {
         System.out.println("Los resultados se guardarán en: " + outputPath.toAbsolutePath());
 
         try {
-            driver = login(email, password);
+            this.driver = driver;
+            WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(20));
+            login(driver, wait, email, password);
             System.out.println("Login exitoso (aparentemente). El crawler continuará aquí.");
 
             WebDriverWait mainWait = new WebDriverWait(driver, Duration.ofSeconds(20));
@@ -65,7 +86,7 @@ public class Crawler {
             Thread.sleep(5000); // Additional buffer for page load/redirects after login
 
             // Call the crawling logic
-            crawlAndExtractData(driver, outputPath);
+            crawlAndExtractData(driver, outputPath, wait);
 
             // Espera de 10 segundos para verificación visual
             System.out.println("Esperando 10 segundos antes de cerrar...");
@@ -75,7 +96,7 @@ public class Crawler {
             System.err.println("Ocurrió un error durante el proceso de login con Selenium o el crawling.");
             e.printStackTrace();
         } finally {
-            if (driver != null) {
+            if (this.driver != null) {
                 System.out.println("Navegador abierto para inspección manual. Cerrando en 60 segundos...");
                 try {
                     Thread.sleep(60000); // Mantener el navegador abierto para inspección manual
@@ -83,22 +104,13 @@ public class Crawler {
                     Thread.currentThread().interrupt(); // Restore the interrupted status
                     System.err.println("La espera del navegador fue interrumpida.");
                 }
-                driver.quit();
+                this.driver.quit();
                 System.out.println("Navegador cerrado.");
             }
         }
     }
 
-    private WebDriver login(String email, String password) throws InterruptedException {
-        System.setProperty("webdriver.chrome.driver", driverPath);
-
-        ChromeOptions options = new ChromeOptions();
-        options.addArguments("--disable-blink-features=AutomationControlled");
-        options.addArguments("--disable-extensions");
-        options.addArguments("--disable-dev-shm-usage");
-        options.addArguments("--no-sandbox");
-        // options.addArguments("--headless"); // Descomentar para ejecutar sin abrir ventana del navegador
-        WebDriver driver = new ChromeDriver(options);
+    private void login(WebDriver driver, WebDriverWait wait, String email, String password) throws InterruptedException {
         driver.manage().window().maximize(); // Maximizar ventana para asegurar visibilidad de elementos
 
         driver.get(loginUrl);
@@ -108,9 +120,7 @@ public class Crawler {
         System.out.println("Título de la página: " + driver.getTitle());
         System.out.println("Página de login abierta. Introduciendo credenciales...");
 
-        WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(20)); // Aumentar espera máxima si es necesario
-
-        // Esperar a que el campo de email esté presente y sea interactuable
+        // Wait for the email field to be present and clickable
         WebElement emailInput = wait.until(ExpectedConditions.elementToBeClickable(By.name("email")));
         WebElement passwordInput = wait.until(ExpectedConditions.elementToBeClickable(By.name("password")));
 
@@ -120,11 +130,9 @@ public class Crawler {
         passwordInput.submit();
 
         System.out.println("Formulario de login enviado.");
-
-        return driver;
     }
 
-    private Path createOutputDirectories() {
+    protected Path createOutputDirectories() {
         try {
             LocalDate today = LocalDate.now();
             DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
@@ -142,9 +150,8 @@ public class Crawler {
         }
     }
 
-    private void crawlAndExtractData(WebDriver driver, Path outputPath) {
+    protected void crawlAndExtractData(WebDriver driver, Path outputPath, WebDriverWait wait) {
         System.out.println("Iniciando crawling y extracción de datos...");
-        WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(20));
         Set<String> visitedThreadUrls = new HashSet<>();
 
         try {
