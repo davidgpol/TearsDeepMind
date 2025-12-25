@@ -188,54 +188,12 @@ public class Crawler {
                     continue;
                 }
 
-                System.out.println("Visitando hilo: " + threadUrl);
-                driver.get(threadUrl);
                 visitedThreadUrls.add(threadUrl);
-
-                // Wait for the thread detail page to load
-                wait.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector("body"))); // Wait for body to be visible
-                Thread.sleep(2000); // Give some time for content to render
-
-                String threadTitle = "No Title Found";
-                String threadContent = "";
-
-                try {
-                    // Precise selector for thread title on detail page
-                    WebElement titleElement = wait.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector("div.detail-layout-title h1")));
-                    threadTitle = titleElement.getText().trim();
-                    System.out.println("Título extraído: " + threadTitle); // Debugging output
-                } catch (Exception e) {
-                    System.err.println("No se pudo encontrar el título del hilo en: " + threadUrl + ". Usando título por defecto.");
-                    threadTitle = "Thread-" + System.currentTimeMillis(); // Fallback title
-                }
-
-                try {
-                    // Precise selector for main post content on detail page
-                    WebElement contentElement = wait.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector("div.detail-layout-description.mighty-wysiwyg-content.mighty-max-content-width.fr-view")));
-                    threadContent = contentElement.getText().trim();
-                } catch (Exception e) {
-                    System.err.println("No se pudo encontrar el contenido principal del hilo en: " + threadUrl + ". Obteniendo todo el texto visible del cuerpo.");
-                    threadContent = driver.findElement(By.cssSelector("body")).getText().trim(); // Fallback to entire body
-                }
                 
-                // Generate filename using only the sanitized thread title as requested
-                String fileName = sanitizeFilename(threadTitle) + ".txt";
-
-                Path filePath = outputPath.resolve(fileName);
-                try (FileWriter writer = new FileWriter(filePath.toFile(), StandardCharsets.UTF_8)) { // Specify UTF-8 encoding
-                    writer.write("URL: " + threadUrl + "\n\n");
-                    writer.write("Título: " + threadTitle + "\n\n");
-                    writer.write("Contenido:\n" + threadContent);
-                    System.out.println("Hilo guardado: " + filePath.toAbsolutePath());
-                } catch (IOException e) {
-                    System.err.println("Error al guardar el hilo " + threadTitle + ": " + e.getMessage());
-                    e.printStackTrace();
-                }
+                // Process thread sequentially
+                processThread(driver, outputPath, wait, threadUrl, sectionUrl);
 
                 threadsProcessed++; // Increment the counter
-                driver.navigate().back(); // Go back to the list of threads
-                wait.until(ExpectedConditions.urlContains(sectionUrl)); // Wait for the section page to load again
-                Thread.sleep(2000); // Give some time for the page to render
             }
 
             System.out.println("Extracción de datos completada.");
@@ -244,6 +202,54 @@ public class Crawler {
             System.err.println("Error durante el crawling: " + e.getMessage());
             e.printStackTrace();
         }
+    }
+
+    protected void processThread(WebDriver driver, Path outputPath, WebDriverWait wait, String threadUrl, String sectionUrl) throws InterruptedException {
+        System.out.println("Visitando hilo: " + threadUrl);
+        driver.get(threadUrl);
+
+        // Wait for the thread detail page to load
+        wait.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector("body"))); // Wait for body to be visible
+        Thread.sleep(2000); // Give some time for content to render
+
+        String threadTitle = "No Title Found";
+        String threadContent = "";
+
+        try {
+            // Precise selector for thread title on detail page
+            WebElement titleElement = wait.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector("div.detail-layout-title h1")));
+            threadTitle = titleElement.getText().trim();
+            System.out.println("Título extraído: " + threadTitle); // Debugging output
+        } catch (Exception e) {
+            System.err.println("No se pudo encontrar el título del hilo en: " + threadUrl + ". Usando título por defecto.");
+            threadTitle = "Thread-" + System.currentTimeMillis(); // Fallback title
+        }
+
+        try {
+            // Precise selector for main post content on detail page
+            WebElement contentElement = wait.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector("div.detail-layout-description.mighty-wysiwyg-content.mighty-max-content-width.fr-view")));
+            threadContent = contentElement.getText().trim();
+        } catch (Exception e) {
+            System.err.println("No se pudo encontrar el contenido principal del hilo en: " + threadUrl + ". Obteniendo todo el texto visible del cuerpo.");
+            threadContent = driver.findElement(By.cssSelector("body")).getText().trim(); // Fallback to entire body
+        }
+        
+        // Generate filename using only the sanitized thread title as requested
+        String fileName = sanitizeFilename(threadTitle) + ".txt";
+
+        Path filePath = outputPath.resolve(fileName);
+        try (FileWriter writer = new FileWriter(filePath.toFile(), StandardCharsets.UTF_8)) { // Specify UTF-8 encoding
+            writer.write("URL: " + threadUrl + "\n\n");
+            writer.write("Título: " + threadTitle + "\n\n");
+            writer.write("Contenido:\n" + threadContent);
+            System.out.println("Hilo guardado: " + filePath.toAbsolutePath());
+        } catch (IOException e) {
+            System.err.println("Error al guardar el hilo " + threadTitle + ": " + e.getMessage());
+            e.printStackTrace();
+        }
+        driver.navigate().back(); // Go back to the list of threads
+        wait.until(ExpectedConditions.urlContains(sectionUrl)); // Wait for the section page to load again
+        Thread.sleep(2000); // Give some time for the page to render
     }
     // Helper method to sanitize filenames
     private String sanitizeFilename(String name) {
