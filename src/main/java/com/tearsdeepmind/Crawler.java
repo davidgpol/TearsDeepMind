@@ -3,14 +3,12 @@ package com.tearsdeepmind;
 import org.openqa.selenium.By;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebElement;
-import org.openqa.selenium.chrome.ChromeDriver;
-import org.openqa.selenium.chrome.ChromeOptions;
 import org.openqa.selenium.support.ui.WebDriverWait;
 import org.openqa.selenium.support.ui.ExpectedConditions;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import javax.annotation.PostConstruct;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -39,26 +37,13 @@ public class Crawler {
     @Value("${app.driver.path}")
     private String driverPath;
 
+    @Autowired
+    private WebDriverFactory webDriverFactory;
+
     private WebDriver driver;
-    private ChromeOptions options = createChromeOptions();
-
-    protected WebDriver createWebDriver() {
-        System.setProperty("webdriver.chrome.driver", Paths.get(driverPath).toAbsolutePath().toString());
-        return new ChromeDriver(options);
-    }
-
-    private ChromeOptions createChromeOptions() {
-        ChromeOptions options = new ChromeOptions();
-        options.addArguments("--disable-blink-features=AutomationControlled");
-        options.addArguments("--disable-extensions");
-        options.addArguments("--disable-dev-shm-usage");
-        options.addArguments("--no-sandbox");
-        // options.addArguments("--headless"); // Uncomment to run without opening a browser window
-        return options;
-    }
 
     public void initializeAndStart() {
-        startCrawling(createWebDriver());
+        startCrawling(webDriverFactory.createWebDriver());
     }
 
     public void startCrawling(WebDriver driver) {

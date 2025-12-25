@@ -25,7 +25,7 @@ class CrawlerTest {
     private Crawler crawler;
 
     @MockBean
-    private WebDriver mockWebDriver;
+    private WebDriverFactory mockWebDriverFactory;
 
     @SpyBean // Use SpyBean to partially mock Crawler and call real methods for others
     private Crawler spyCrawler;
@@ -41,14 +41,9 @@ class CrawlerTest {
         WebElement mockEmailInput = mock(WebElement.class);
         WebElement mockPasswordInput = mock(WebElement.class);
         
-        // Mock the createWebDriver method to return our mockWebDriver
-        doReturn(mockWebDriver).when(spyCrawler).createWebDriver();
-
-        // Mock the createOutputDirectories method to prevent actual directory creation during test
-        doReturn(Paths.get("mockPath")).when(spyCrawler).createOutputDirectories();
-
-        // Mock the crawlAndExtractData method to prevent actual crawling during test
-        doNothing().when(spyCrawler).crawlAndExtractData(any(WebDriver.class), any(Path.class), any(WebDriverWait.class));
+        // Mock the createWebDriver method of the WebDriverFactory to return a mock WebDriver
+        WebDriver mockWebDriver = mock(WebDriver.class);
+        doReturn(mockWebDriver).when(mockWebDriverFactory).createWebDriver();
 
         // Mock WebDriver.Options and WebDriver.Window
         WebDriver.Options mockOptions = mock(WebDriver.Options.class);
@@ -66,8 +61,14 @@ class CrawlerTest {
         when(mockWebDriver.findElement(By.name("email"))).thenReturn(mockEmailInput);
         when(mockWebDriver.findElement(By.name("password"))).thenReturn(mockPasswordInput);
 
-        // Call the startCrawling method
-        spyCrawler.startCrawling(mockWebDriver);
+        // Mock the createOutputDirectories method to prevent actual directory creation during test
+        doReturn(Paths.get("mockPath")).when(spyCrawler).createOutputDirectories();
+
+        // Mock the crawlAndExtractData method to prevent actual crawling during test
+        doNothing().when(spyCrawler).crawlAndExtractData(any(WebDriver.class), any(Path.class), any(WebDriverWait.class));
+
+        // Call the initializeAndStart method
+        spyCrawler.initializeAndStart();
 
         // Verify interactions related to login
         verify(mockWebDriver).manage();
