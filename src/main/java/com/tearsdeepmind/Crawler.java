@@ -7,12 +7,12 @@ import org.openqa.selenium.chrome.ChromeDriver;
 import org.openqa.selenium.chrome.ChromeOptions;
 import org.openqa.selenium.support.ui.WebDriverWait;
 import org.openqa.selenium.support.ui.ExpectedConditions;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
 
-import java.io.FileInputStream;
+import javax.annotation.PostConstruct;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.io.InputStream;
-import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -22,30 +22,27 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Properties;
 import java.util.Set;
 
+@Service
 public class Crawler {
 
-    private static final String LOGIN_URL = "https://tradingedge.club/sign_in";
-    private static String driverPath; // Now loaded from .env
+    @Value("${app.login.url}")
+    private String loginUrl;
 
-    public static void main(String[] args) {
-        Properties props = loadProperties();
-        if (props == null) {
-            System.err.println("Error: No se pudo cargar el archivo .env con las credenciales.");
-            return;
-        }
+    @Value("${app.email}")
+    private String email;
 
-        String email = props.getProperty("EMAIL");
-        String password = props.getProperty("PASSWORD");
-        driverPath = props.getProperty("DRIVER_PATH"); // Load driver path from .env
+    @Value("${app.password}")
+    private String password;
 
-        if (driverPath == null || driverPath.isEmpty()) {
-            System.err.println("Error: DRIVER_PATH no está configurado en el archivo .env");
-            return;
-        }
+    @Value("${app.driver.path}")
+    private String driverPath;
 
+    private WebDriver driver;
+
+    @PostConstruct
+    public void startCrawling() {
         System.out.println("Crawler iniciado con Selenium.");
         System.out.println("Usuario: " + email);
 
@@ -57,11 +54,10 @@ public class Crawler {
         }
         System.out.println("Los resultados se guardarán en: " + outputPath.toAbsolutePath());
 
-        WebDriver driver = null;
         try {
             driver = login(email, password);
             System.out.println("Login exitoso (aparentemente). El crawler continuará aquí.");
-            
+
             WebDriverWait mainWait = new WebDriverWait(driver, Duration.ofSeconds(20));
             // Wait for the post-login page to stabilize
             System.out.println("Esperando que la página post-login se estabilice...");
@@ -69,7 +65,7 @@ public class Crawler {
             Thread.sleep(5000); // Additional buffer for page load/redirects after login
 
             // Call the crawling logic
-            crawlAndExtractData(driver, outputPath); 
+            crawlAndExtractData(driver, outputPath);
 
             // Espera de 10 segundos para verificación visual
             System.out.println("Esperando 10 segundos antes de cerrar...");
@@ -93,9 +89,9 @@ public class Crawler {
         }
     }
 
-    private static WebDriver login(String email, String password) throws InterruptedException {
+    private WebDriver login(String email, String password) throws InterruptedException {
         System.setProperty("webdriver.chrome.driver", driverPath);
-        
+
         ChromeOptions options = new ChromeOptions();
         options.addArguments("--disable-blink-features=AutomationControlled");
         options.addArguments("--disable-extensions");
@@ -105,7 +101,7 @@ public class Crawler {
         WebDriver driver = new ChromeDriver(options);
         driver.manage().window().maximize(); // Maximizar ventana para asegurar visibilidad de elementos
 
-        driver.get(LOGIN_URL);
+        driver.get(loginUrl);
         Thread.sleep(2000); // Dar tiempo a que la página cargue completamente y JavaScript se ejecute
 
         System.out.println("URL actual: " + driver.getCurrentUrl());
@@ -117,29 +113,18 @@ public class Crawler {
         // Esperar a que el campo de email esté presente y sea interactuable
         WebElement emailInput = wait.until(ExpectedConditions.elementToBeClickable(By.name("email")));
         WebElement passwordInput = wait.until(ExpectedConditions.elementToBeClickable(By.name("password")));
-        
+
         emailInput.sendKeys(email);
         passwordInput.sendKeys(password);
 
         passwordInput.submit();
-        
+
         System.out.println("Formulario de login enviado.");
 
         return driver;
     }
 
-    private static Properties loadProperties() {
-        Properties properties = new Properties();
-        try (InputStream input = new FileInputStream(".env")) {
-            properties.load(input);
-            return properties;
-        } catch (IOException ex) {
-            ex.printStackTrace();
-            return null;
-        }
-    }
-
-    private static Path createOutputDirectories() {
+    private Path createOutputDirectories() {
         try {
             LocalDate today = LocalDate.now();
             DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
@@ -156,8 +141,8 @@ public class Crawler {
             return null;
         }
     }
-    
-    private static void crawlAndExtractData(WebDriver driver, Path outputPath) {
+
+    private void crawlAndExtractData(WebDriver driver, Path outputPath) {
         System.out.println("Iniciando crawling y extracción de datos...");
         WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(20));
         Set<String> visitedThreadUrls = new HashSet<>();
@@ -176,7 +161,7 @@ public class Crawler {
 
             // Find all 'a' elements within the 'feed-list' that have the class 'feed-item-post'
             List<WebElement> threadLinks = driver.findElements(By.cssSelector("#feed-list a.feed-item-post"));
-            
+
             System.out.println("Encontrados " + threadLinks.size() + " posibles enlaces a hilos dentro de la sección.");
 
             int threadsProcessed = 0; // Counter for processed threads
@@ -184,11 +169,11 @@ public class Crawler {
                 // Re-find elements to avoid StaleElementReferenceException
                 wait.until(ExpectedConditions.visibilityOfElementLocated(By.id("feed-list"))); // Ensure the list is still visible
                 threadLinks = driver.findElements(By.cssSelector("#feed-list a.feed-item-post"));
-                
+
                 if (i >= threadLinks.size()) { // Check if the list size changed during re-finding
                     break;
                 }
-                
+
                 WebElement threadLinkElement = threadLinks.get(i);
                 String threadUrl = threadLinkElement.getAttribute("href");
 
@@ -209,7 +194,7 @@ public class Crawler {
 
                 try {
                     // Precise selector for thread title on detail page
-                    WebElement titleElement = wait.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector("div.detail-layout-title h1"))); 
+                    WebElement titleElement = wait.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector("div.detail-layout-title h1")));
                     threadTitle = titleElement.getText().trim();
                     System.out.println("Título extraído: " + threadTitle); // Debugging output
                 } catch (Exception e) {
@@ -254,9 +239,9 @@ public class Crawler {
         }
     }
     // Helper method to sanitize filenames
-    private static String sanitizeFilename(String name) {
+    private String sanitizeFilename(String name) {
         // Replace invalid characters for filenames with an underscore
-        String sanitized = name.replaceAll("[^a-zA-Z0-9-_.]", "_"); 
+        String sanitized = name.replaceAll("[^a-zA-Z0-9-_.]", "_");
         // Trim to prevent leading/trailing underscores and limit length if necessary
         return sanitized.trim();
     }
