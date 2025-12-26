@@ -50,46 +50,54 @@ public class Crawler {
         System.out.println("Usuario: " + email);
 
         // Create output directory structure
-        Path outputPath = createOutputDirectories();
-        if (outputPath == null) {
+        Path dailyDir = createOutputDirectories();
+        if (dailyDir == null) {
             System.err.println("Error: No se pudieron crear los directorios de salida.");
             return;
         }
-        System.out.println("Los resultados se guardarán en: " + outputPath.toAbsolutePath());
+
+        Path dailyAnalysisPath = dailyDir.resolve("DailyAnalysis");
+        Path quantUpdatesPath = dailyDir.resolve("QuantUpdates");
+
+        System.out.println("Los resultados de DailyAnalysis se guardarán en: " + dailyAnalysisPath.toAbsolutePath());
+        System.out.println("Los resultados de QuantUpdates se guardarán en: " + quantUpdatesPath.toAbsolutePath());
+
+
+        String dailyAnalysisUrl = "https://tradingedge.club/spaces/20140826";
+        String quantUpdatesUrl = "https://tradingedge.club/spaces/20140900/feed";
 
         WebDriver driver = null;
         try {
             driver = login(email, password, driverPath);
-                    System.out.println("Login exitoso (aparentemente). El crawler continuará aquí.");
-                    // The main method's wait has been moved into the login method.
-                    // If login is truly successful, the driver should already be on the new page.
-            
-                    // Call the crawling logic
-                    crawlAndExtractData(driver, outputPath); 
-            
-                    // Espera de 10 segundos para verificación visual
-                    System.out.println("Esperando 10 segundos antes de cerrar...");
-                    Thread.sleep(10000);
-            
-                        } catch (Exception e) {
-                            System.err.println("Ocurrió un error durante el proceso de login con Selenium o el crawling.");
-                            e.printStackTrace();
-                        } finally {
-                            if (driver != null) {
-                                System.out.println("Navegador abierto para inspección manual. Por favor, examine la página y cierre la ventana del navegador cuando termine.");
-                                try {
-                                    // Keep the browser open indefinitely until the user closes it manually or after a very long time
-                                    // Or, for testing purposes, keep it open for 5 minutes (300 seconds)
-                                    Thread.sleep(300000); 
-                                } catch (InterruptedException e) {
-                                    Thread.currentThread().interrupt(); 
-                                    System.err.println("La espera del navegador fue interrumpida.");
-                                }
-                                driver.quit();
-                                System.out.println("Navegador cerrado.");
-                            }
-                        }
-                    }            
+            System.out.println("Login exitoso (aparentemente). El crawler continuará aquí.");
+
+            // Call the crawling logic for both sections
+            crawlAndExtractData(driver, dailyAnalysisPath, dailyAnalysisUrl);
+            crawlAndExtractData(driver, quantUpdatesPath, quantUpdatesUrl);
+
+            // Espera de 10 segundos para verificación visual
+            System.out.println("Esperando 10 segundos antes de cerrar...");
+            Thread.sleep(10000);
+
+        } catch (Exception e) {
+            System.err.println("Ocurrió un error durante el proceso de login con Selenium o el crawling.");
+            e.printStackTrace();
+        } finally {
+            if (driver != null) {
+                System.out.println("Navegador abierto para inspección manual. Por favor, examine la página y cierre la ventana del navegador cuando termine.");
+                try {
+                    // Keep the browser open indefinitely until the user closes it manually or after a very long time
+                    // Or, for testing purposes, keep it open for 5 minutes (300 seconds)
+                    Thread.sleep(300000);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    System.err.println("La espera del navegador fue interrumpida.");
+                }
+                driver.quit();
+                System.out.println("Navegador cerrado.");
+            }
+        }
+    }            
             private static WebDriver login(String email, String password, String driverPath) throws InterruptedException {
                 System.setProperty("webdriver.chrome.driver", driverPath);
                 
@@ -137,7 +145,7 @@ public class Crawler {
                 
                                         
                 
-                                                        // This wait is now inside the login method, so the main method doesn't need to do it.\n
+                                                        // This wait is now inside the login method, so the main method doesn't need to do it.
                 
                                         
                 
@@ -161,11 +169,11 @@ public class Crawler {
                 
                                         
                 
-                                                            // If the URL still contains "sign_in", it means login failed.\n
+                                                            // If the URL still contains "sign_in", it means login failed.
                 
                                         
                 
-                                                            // We can try to find an error message or just throw the exception again.\n
+                                                            // We can try to find an error message or just throw the exception again.
                 
                                         
                 
@@ -173,7 +181,7 @@ public class Crawler {
                 
                                         
                 
-                                                            throw e; // Re-throw the exception to indicate login failure\n
+                                                            throw e; // Re-throw the exception to indicate login failure
                 
                                         
                 
@@ -199,13 +207,15 @@ public class Crawler {
     private static Path createOutputDirectories() {
         try {
             LocalDate today = LocalDate.now();
-            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyyMMdd");
             String dateFolder = today.format(formatter);
 
-            Path baseDir = Paths.get("TearAnalysis");
+            Path baseDir = Paths.get("TearsMind");
             Path dailyDir = baseDir.resolve(dateFolder);
 
-            Files.createDirectories(dailyDir);
+            Files.createDirectories(dailyDir.resolve("DailyAnalysis"));
+            Files.createDirectories(dailyDir.resolve("QuantUpdates"));
+
             return dailyDir;
         } catch (IOException e) {
             System.err.println("Error al crear los directorios de salida: " + e.getMessage());
@@ -214,13 +224,12 @@ public class Crawler {
         }
     }
     
-    private static void crawlAndExtractData(WebDriver driver, Path outputPath) {
-        System.out.println("Iniciando crawling y extracción de datos...");
+    private static void crawlAndExtractData(WebDriver driver, Path outputPath, String sectionUrl) {
+        System.out.println("Iniciando crawling y extracción de datos para la sección: " + sectionUrl);
         WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(20));
         Set<String> visitedThreadUrls = new HashSet<>();
 
         try {
-            String sectionUrl = "https://tradingedge.club/spaces/20140826";
             
             // First, ensure we've landed somewhere after login (not still on sign_in).
             // The login method handles this wait.
