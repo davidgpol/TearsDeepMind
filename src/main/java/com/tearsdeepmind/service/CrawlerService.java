@@ -13,7 +13,6 @@ import org.openqa.selenium.support.ui.WebDriverWait;
 import io.github.bonigarcia.wdm.WebDriverManager;
 import org.openqa.selenium.TimeoutException;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.io.File;
@@ -29,7 +28,6 @@ import java.time.format.DateTimeFormatter;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
 
 @Service
 public class CrawlerService {
@@ -43,13 +41,12 @@ public class CrawlerService {
     @Value("${crawler.password}")
     private String password;
 
-    @Async
-    public CompletableFuture<Void> extract(String seccion, int dias, String uuid) {
+    public void extract(String seccion, int dias, String uuid) {
         logger.info("[{}] Starting extraction for section {} and days {}", uuid, seccion, dias);
         
         if (email == null || email.isEmpty() || password == null || password.isEmpty()) {
             logger.error("[{}] Email or password are not configured.", uuid);
-            return CompletableFuture.completedFuture(null);
+            return;
         }
 
         WebDriver driver = null;
@@ -60,7 +57,7 @@ public class CrawlerService {
             Path dailyDir = createOutputDirectories(seccion, uuid);
             if (dailyDir == null) {
                 logger.error("[{}] Could not create output directories.", uuid);
-                return CompletableFuture.completedFuture(null);
+                return;
             }
 
             crawlAndExtractData(driver, dailyDir, getSectionUrl(seccion), dias, uuid);
@@ -73,7 +70,6 @@ public class CrawlerService {
                 logger.info("[{}] Browser closed.", uuid);
             }
         }
-        return CompletableFuture.completedFuture(null);
     }
 
     public boolean check(String seccion) {
@@ -97,7 +93,6 @@ public class CrawlerService {
         WebDriverManager.chromedriver().setup();
 
         ChromeOptions options = new ChromeOptions();
-        options.addArguments("--headless=new");
         options.addArguments("--disable-gpu");
         options.addArguments("--window-size=1920,1080");
         options.addArguments("--remote-allow-origins=*");
