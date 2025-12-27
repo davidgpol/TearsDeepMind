@@ -13,6 +13,7 @@ import org.openqa.selenium.support.ui.WebDriverWait;
 import io.github.bonigarcia.wdm.WebDriverManager;
 import org.openqa.selenium.TimeoutException;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.io.File;
@@ -28,6 +29,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 
 @Service
 public class CrawlerService {
@@ -41,12 +43,13 @@ public class CrawlerService {
     @Value("${crawler.password}")
     private String password;
 
-    public void extract(String seccion, int dias, String uuid) {
+    @Async
+    public CompletableFuture<Void> extract(String seccion, int dias, String uuid) {
         logger.info("[{}] Starting extraction for section {} and days {}", uuid, seccion, dias);
         
         if (email == null || email.isEmpty() || password == null || password.isEmpty()) {
             logger.error("[{}] Email or password are not configured.", uuid);
-            return;
+            return CompletableFuture.completedFuture(null);
         }
 
         WebDriver driver = null;
@@ -54,13 +57,17 @@ public class CrawlerService {
             driver = login(email, password, uuid);
             logger.info("[{}] Login successful (apparently). The crawler will continue here.", uuid);
 
-            Path dailyDir = createOutputDirectories(seccion, uuid);
-            if (dailyDir == null) {
-                logger.error("[{}] Could not create output directories.", uuid);
-                return;
-            }
+            Path baseDir = Paths.get("TearsDeepMind", "TearsMind");
+            LocalDate today = LocalDate.now();
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyyMMdd");
+            String dateFolder = today.format(formatter);
+            Path dailyDir = baseDir.resolve(dateFolder);
+            Path sectionDir = dailyDir.resolve(seccion);
+            
+            Files.createDirectories(sectionDir);
+            logger.info("[{}] Created output directory: {}", uuid, sectionDir.toAbsolutePath());
 
-            crawlAndExtractData(driver, dailyDir, getSectionUrl(seccion), dias, uuid);
+            crawlAndExtractData(driver, sectionDir, getSectionUrl(seccion), dias, uuid);
 
         } catch (Exception e) {
             logger.error("[{}] An error occurred during the Selenium login or crawling process.", uuid, e);
@@ -70,6 +77,7 @@ public class CrawlerService {
                 logger.info("[{}] Browser closed.", uuid);
             }
         }
+        return CompletableFuture.completedFuture(null);
     }
 
     public boolean check(String seccion) {
@@ -93,9 +101,11 @@ public class CrawlerService {
         WebDriverManager.chromedriver().setup();
 
         ChromeOptions options = new ChromeOptions();
+        options.addArguments("--headless=new");
         options.addArguments("--disable-gpu");
         options.addArguments("--window-size=1920,1080");
         options.addArguments("--remote-allow-origins=*");
+        options.addArguments("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
         
         WebDriver driver = new ChromeDriver(options);
         driver.manage().window().maximize();

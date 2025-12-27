@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 
 @RestController
 @RequestMapping("/api/v1/crawler")
@@ -25,11 +26,17 @@ public class CrawlerController {
     }
 
     @GetMapping("/extract/{seccion}/{dias}")
-    public void extract(@PathVariable String seccion, @PathVariable int dias) {
+    public CompletableFuture<Void> extract(@PathVariable String seccion, @PathVariable int dias) {
         String uuid = UUID.randomUUID().toString();
         logger.info("[{}] Received request to extract {} threads from section {}", uuid, dias, seccion);
-        crawlerService.extract(seccion, dias, uuid);
-        logger.info("[{}] Finished extracting threads from section {}", uuid, seccion);
+        CompletableFuture<Void> future = crawlerService.extract(seccion, dias, uuid);
+        future.whenComplete((result, ex) -> {
+            if (ex != null) {
+                logger.error("[{}] Error during extraction.", uuid, ex);
+            }
+            logger.info("[{}] Finished extracting threads from section {}", uuid, seccion);
+        });
+        return future;
     }
 
     @GetMapping("/check/{seccion}")
