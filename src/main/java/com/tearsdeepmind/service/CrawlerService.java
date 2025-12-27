@@ -139,7 +139,7 @@ public class CrawlerService {
             DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyyMMdd");
             String dateFolder = today.format(formatter);
 
-            Path baseDir = Paths.get("TearsMind");
+            Path baseDir = Paths.get("TearsDeepMind", "TearsMind");
             Path dailyDir = baseDir.resolve(dateFolder);
             Path sectionDir = dailyDir.resolve(seccion);
 
