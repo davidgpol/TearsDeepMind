@@ -1,0 +1,92 @@
+{
+	"info": {
+		"_postman_id": "e4f8d9a1-b5c2-4d3e-8f9a-1b2c3d4e5f6a",
+		"name": "TearsDeepMind API",
+		"description": "Collection for the TearsDeepMind Crawler Microservice. Includes endpoints for extraction and checking of financial forum threads.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Crawler Operations",
+			"description": "Core operations for the crawler service.",
+			"item": [
+				{
+					"name": "Extract - DailyAnalysis (1 Day)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/crawler/extract/DailyAnalysis/1",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"crawler",
+								"extract",
+								"DailyAnalysis",
+								"1"
+							]
+						},
+						"description": "Triggers the extraction of threads from the 'DailyAnalysis' section looking back 1 day."
+					},
+					"response": []
+				},
+				{
+					"name": "Extract - QuantUpdates (1 Day)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/crawler/extract/QuantUpdates/1",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"crawler",
+								"extract",
+								"QuantUpdates",
+								"1"
+							]
+						},
+						"description": "Triggers the extraction of threads from the 'QuantUpdates' section looking back 1 day."
+					},
+					"response": []
+				},
+				{
+					"name": "Check Section Status",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/crawler/check/DailyAnalysis",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"crawler",
+								"check",
+								"DailyAnalysis"
+							]
+						},
+						"description": "Checks if a section is valid and potentially has new content (logic placeholder)."
+					},
+					"response": []
+				}
+			]
+		}
+	],
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:8080",
+			"type": "string",
+			"description": "Base URL for the TearsDeepMind service"
+		}
+	]
+}
