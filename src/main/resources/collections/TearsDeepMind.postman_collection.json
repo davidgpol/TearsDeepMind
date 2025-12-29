@@ -1,36 +1,18 @@
 {
 	"info": {
-		"_postman_id": "8a3d4f5e-1234-5678-90ab-cdef12345678",
+		"_postman_id": "e4f8d9a1-b5c2-4d3e-8f9a-1b2c3d4e5f6a",
 		"name": "TearsDeepMind API",
-		"description": "Collection for testing the TearsDeepMind crawler microservice endpoints.",
+		"description": "Collection for the TearsDeepMind Crawler Microservice. Includes endpoints for extraction and checking of financial forum threads.",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
 	},
 	"item": [
 		{
-			"name": "Extract Threads",
-			"request": {
-				"method": "GET",
-				"header": [],
-				"url": {
-					"raw": "{{baseUrl}}/api/v1/crawler/extract/{{seccion}}/{{dias}}",
-					"host": [
-						"{{baseUrl}}"
-					],
-					"path": [
-						"api",
-						"v1",
-						"crawler",
-						"extract",
-						"{{seccion}}",
-						"{{dias}}"
-					]
-				},
-				"description": "Triggers the crawling process for a specific section and number of days (threads)."
-			},
-			"response": [
+			"name": "Crawler Operations",
+			"description": "Core operations for the crawler service.",
+			"item": [
 				{
-					"name": "Success Example - DailyAnalysis",
-					"originalRequest": {
+					"name": "Extract - DailyAnalysis (1 Day)",
+					"request": {
 						"method": "GET",
 						"header": [],
 						"url": {
@@ -46,18 +28,14 @@
 								"DailyAnalysis",
 								"1"
 							]
-						}
+						},
+						"description": "Triggers the extraction of threads from the 'DailyAnalysis' section looking back 1 day."
 					},
-					"status": "OK",
-					"code": 200,
-					"_postman_previewlanguage": "plain",
-					"header": [],
-					"cookie": [],
-					"body": ""
+					"response": []
 				},
 				{
-					"name": "Success Example - QuantUpdates",
-					"originalRequest": {
+					"name": "Extract - QuantUpdates (1 Day)",
+					"request": {
 						"method": "GET",
 						"header": [],
 						"url": {
@@ -73,41 +51,14 @@
 								"QuantUpdates",
 								"1"
 							]
-						}
+						},
+						"description": "Triggers the extraction of threads from the 'QuantUpdates' section looking back 1 day."
 					},
-					"status": "OK",
-					"code": 200,
-					"_postman_previewlanguage": "plain",
-					"header": [],
-					"cookie": [],
-					"body": ""
-				}
-			]
-		},
-		{
-			"name": "Check Section",
-			"request": {
-				"method": "GET",
-				"header": [],
-				"url": {
-					"raw": "{{baseUrl}}/api/v1/crawler/check/{{seccion}}",
-					"host": [
-						"{{baseUrl}}"
-					],
-					"path": [
-						"api",
-						"v1",
-						"crawler",
-						"check",
-						"{{seccion}}"
-					]
+					"response": []
 				},
-				"description": "Checks if there are new threads in the specified section (currently a placeholder)."
-			},
-			"response": [
 				{
-					"name": "Success Example",
-					"originalRequest": {
+					"name": "Check for New Threads",
+					"request": {
 						"method": "GET",
 						"header": [],
 						"url": {
@@ -122,14 +73,10 @@
 								"check",
 								"DailyAnalysis"
 							]
-						}
+						},
+						"description": "Scans the 'DailyAnalysis' section and returns a list of thread titles that have NOT been downloaded locally for the current day."
 					},
-					"status": "OK",
-					"code": 200,
-					"_postman_previewlanguage": "json",
-					"header": [],
-					"cookie": [],
-					"body": "true"
+					"response": []
 				}
 			]
 		}
@@ -138,17 +85,8 @@
 		{
 			"key": "baseUrl",
 			"value": "http://localhost:8080",
-			"type": "string"
-		},
-		{
-			"key": "seccion",
-			"value": "DailyAnalysis",
-			"type": "string"
-		},
-		{
-			"key": "dias",
-			"value": "1",
-			"type": "string"
+			"type": "string",
+			"description": "Base URL for the TearsDeepMind service"
 		}
 	]
 }
