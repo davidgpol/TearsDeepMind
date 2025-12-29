@@ -103,27 +103,21 @@
         ],
         "responses": {
           "200": {
-            "description": "Check completed successfully. Returns list of new thread titles.",
+            "description": "Check completed successfully. Returns true if valid section.",
             "content": {
               "*/*": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "type": "string"
-                  }
+                  "type": "boolean"
                 }
               }
             }
           },
-          "500": {
-            "description": "Internal server error during check.",
+          "404": {
+            "description": "Section not found.",
             "content": {
               "*/*": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "type": "string"
-                  }
+                  "type": "boolean"
                 }
               }
             }

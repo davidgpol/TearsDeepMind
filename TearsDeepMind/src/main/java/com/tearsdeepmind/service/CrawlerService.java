@@ -123,15 +123,7 @@ public class CrawlerService {
 
             for (WebElement link : threadLinks) {
                 try {
-                    // Try to get the title. The structure can vary, but usually the text of the link or a child div contains it.
-                    // We'll try to find a specific title class first, fallback to link text.
                     String title = link.getText().trim();
-                    if (title.isEmpty()) {
-                         // Sometimes title is nested in a specific way or hidden
-                         WebElement titleElement = link.findElement(By.xpath(".//*[contains(@class, 'title')]"));
-                         title = titleElement.getText().trim();
-                    }
-
                     if (title.isEmpty()) continue;
                     
                     if (!dirExists) {
@@ -174,7 +166,7 @@ public class CrawlerService {
     }
 
     private WebDriver login(String email, String password, String uuid) throws InterruptedException {
-        logger.info("[{}] Setting up web driver.", uuid);
+        logger.info("[{}] Setting up web driver.", uuid); 
         
         WebDriverManager.chromedriver().setup();
 
@@ -216,7 +208,6 @@ public class CrawlerService {
         return driver;
     }
     
-    // Reuse extraction logic but keeping it encapsulated
     private void crawlAndExtractData(WebDriver driver, Path outputPath, String sectionUrl, int dias, String uuid) {
         logger.info("[{}] Starting crawling and data extraction for section: {}", uuid, sectionUrl);
         WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(20));
