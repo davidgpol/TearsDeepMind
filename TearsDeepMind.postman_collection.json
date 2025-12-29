@@ -1,0 +1,154 @@
+{
+	"info": {
+		"_postman_id": "8a3d4f5e-1234-5678-90ab-cdef12345678",
+		"name": "TearsDeepMind API",
+		"description": "Collection for testing the TearsDeepMind crawler microservice endpoints.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Extract Threads",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{baseUrl}}/api/v1/crawler/extract/{{seccion}}/{{dias}}",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"crawler",
+						"extract",
+						"{{seccion}}",
+						"{{dias}}"
+					]
+				},
+				"description": "Triggers the crawling process for a specific section and number of days (threads)."
+			},
+			"response": [
+				{
+					"name": "Success Example - DailyAnalysis",
+					"originalRequest": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/crawler/extract/DailyAnalysis/1",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"crawler",
+								"extract",
+								"DailyAnalysis",
+								"1"
+							]
+						}
+					},
+					"status": "OK",
+					"code": 200,
+					"_postman_previewlanguage": "plain",
+					"header": [],
+					"cookie": [],
+					"body": ""
+				},
+				{
+					"name": "Success Example - QuantUpdates",
+					"originalRequest": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/crawler/extract/QuantUpdates/1",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"crawler",
+								"extract",
+								"QuantUpdates",
+								"1"
+							]
+						}
+					},
+					"status": "OK",
+					"code": 200,
+					"_postman_previewlanguage": "plain",
+					"header": [],
+					"cookie": [],
+					"body": ""
+				}
+			]
+		},
+		{
+			"name": "Check Section",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{baseUrl}}/api/v1/crawler/check/{{seccion}}",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"crawler",
+						"check",
+						"{{seccion}}"
+					]
+				},
+				"description": "Checks if there are new threads in the specified section (currently a placeholder)."
+			},
+			"response": [
+				{
+					"name": "Success Example",
+					"originalRequest": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/crawler/check/DailyAnalysis",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"crawler",
+								"check",
+								"DailyAnalysis"
+							]
+						}
+					},
+					"status": "OK",
+					"code": 200,
+					"_postman_previewlanguage": "json",
+					"header": [],
+					"cookie": [],
+					"body": "true"
+				}
+			]
+		}
+	],
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:8080",
+			"type": "string"
+		},
+		{
+			"key": "seccion",
+			"value": "DailyAnalysis",
+			"type": "string"
+		},
+		{
+			"key": "dias",
+			"value": "1",
+			"type": "string"
+		}
+	]
+}
