@@ -57,7 +57,7 @@
 					"response": []
 				},
 				{
-					"name": "Check Section Status",
+					"name": "Check for New Threads",
 					"request": {
 						"method": "GET",
 						"header": [],
@@ -74,7 +74,7 @@
 								"DailyAnalysis"
 							]
 						},
-						"description": "Checks if a section is valid and potentially has new content (logic placeholder)."
+						"description": "Scans the 'DailyAnalysis' section and returns a list of thread titles that have NOT been downloaded locally for the current day."
 					},
 					"response": []
 				}

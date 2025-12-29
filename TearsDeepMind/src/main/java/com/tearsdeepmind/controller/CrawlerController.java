@@ -52,18 +52,18 @@ public class CrawlerController {
         return future;
     }
 
-    @Operation(summary = "Check for new content", description = "Checks if there are new threads in the specified section without performing full extraction.")
+    @Operation(summary = "Check for new content", description = "Scans the specified section feed and returns a list of thread titles that have not been downloaded to the local filesystem for the current day.")
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Check completed successfully. Returns true if valid section."),
-            @ApiResponse(responseCode = "404", description = "Section not found.")
+            @ApiResponse(responseCode = "200", description = "Check completed successfully. Returns list of new thread titles."),
+            @ApiResponse(responseCode = "500", description = "Internal server error during check.")
     })
     @GetMapping("/check/{seccion}")
-    public boolean check(
-            @Parameter(description = "The section to check", required = true, example = "DailyAnalysis") @PathVariable String seccion) {
+    public java.util.List<String> check(
+            @Parameter(description = "The section to check (e.g., DailyAnalysis, QuantUpdates)", required = true, example = "DailyAnalysis") @PathVariable String seccion) {
         String uuid = UUID.randomUUID().toString();
         logger.info("[{}] Received request to check for new threads in section {}", uuid, seccion);
-        boolean result = crawlerService.check(seccion);
-        logger.info("[{}] Finished checking for new threads in section {}. Result: {}", uuid, seccion, result);
-        return result;
+        java.util.List<String> newThreads = crawlerService.checkForNewThreads(seccion);
+        logger.info("[{}] Finished checking for new threads in section {}. Found: {}", uuid, seccion, newThreads.size());
+        return newThreads;
     }
 }
