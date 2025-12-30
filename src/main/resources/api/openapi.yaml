@@ -21,17 +21,17 @@ paths:
       tags:
       - Crawler Operations
       summary: Extract threads from a specific section
-      description: Triggers an asynchronous crawling task to extract forum threads from
-        the specified section for the given number of days.
+      description: Triggers an asynchronous crawling task to extract forum threads
+        from the specified section for the given number of days.
       operationId: extract
       parameters:
       - name: seccion
         in: path
-        description: The section name to crawl (e.g., DailyAnalysis, QuantUpdates)
+        description: "The section name to crawl (e.g., DailyAnalysis, QuantUpdates)"
         required: true
         schema:
           type: string
-          example: DailyAnalysis
+        example: DailyAnalysis
       - name: dias
         in: path
         description: Number of days to look back for threads
@@ -39,20 +39,12 @@ paths:
         schema:
           type: integer
           format: int32
-          example: 1
+        example: 1
       responses:
         "200":
           description: Extraction task started successfully.
-          content:
-            */*:
-              schema:
-                type: object
         "500":
           description: Internal server error starting the task.
-          content:
-            */*:
-              schema:
-                type: object
   /api/v1/crawler/check/{seccion}:
     get:
       tags:
@@ -64,24 +56,24 @@ paths:
       parameters:
       - name: seccion
         in: path
-        description: The section to check (e.g., DailyAnalysis, QuantUpdates)
+        description: "The section to check (e.g., DailyAnalysis, QuantUpdates)"
         required: true
         schema:
           type: string
-          example: DailyAnalysis
+        example: DailyAnalysis
       responses:
-        "200":
-          description: Check completed successfully. Returns list of new thread titles.
+        "500":
+          description: Internal server error during check.
           content:
-            */*:
+            '*/*':
               schema:
                 type: array
                 items:
                   type: string
-        "500":
-          description: Internal server error during check.
+        "200":
+          description: Check completed successfully. Returns list of new thread titles.
           content:
-            */*:
+            '*/*':
               schema:
                 type: array
                 items:
