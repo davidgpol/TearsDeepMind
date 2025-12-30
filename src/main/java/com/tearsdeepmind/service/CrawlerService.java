@@ -30,6 +30,7 @@ import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeFormatterBuilder;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
@@ -77,8 +78,7 @@ public class CrawlerService {
         WebDriver driver = null;
         try {
             driver = login(email, password, uuid);
-            Path sectionDir = getOutputPath(seccion);
-            crawlAndExtractDataSync(driver, sectionDir, getSectionUrl(seccion), dias, uuid);
+            crawlAndExtractDataSync(driver, seccion, getSectionUrl(seccion), dias, uuid);
         } catch (Exception e) {
             logger.error("Sync extract error", e);
         } finally {
@@ -98,7 +98,10 @@ public class CrawlerService {
             driver = login(email, password, uuid);
             driver.get(sectionUrl);
             new WebDriverWait(driver, Duration.ofSeconds(20)).until(ExpectedConditions.visibilityOfElementLocated(By.id("feed-list")));
-            Path sectionDir = getOutputPath(seccion);
+            // Check based on today's date for simplicity in "check" mode, or scan recent folders.
+            // For checking new threads, we can check if file exists in today's potential folder or just list recent ones.
+            // Simplified logic: Check if exists in today's folder.
+            Path sectionDir = getOutputPath(seccion, LocalDate.now());
             boolean dirExists = Files.exists(sectionDir);
             List<WebElement> threadLinks = driver.findElements(By.cssSelector("#feed-list a.feed-item-post"));
             for (WebElement link : threadLinks) {
@@ -170,11 +173,11 @@ public class CrawlerService {
             jobStore.saveJob(job);
             logger.info("[{}] Phase 2: Parallel Extraction started with {} browser workers.", uuid, 3);
 
-            Path outputPath = getOutputPath(job.getSection());
+            // Path is now determined per thread, not globally for the job
             List<CompletableFuture<Void>> futures = new ArrayList<>();
 
             for (String url : urls) {
-                futures.add(CompletableFuture.runAsync(() -> processUrlWithRetry(url, job, outputPath), browserPool));
+                futures.add(CompletableFuture.runAsync(() -> processUrlWithRetry(url, job), browserPool));
             }
 
             CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
@@ -194,7 +197,7 @@ public class CrawlerService {
         }
     }
 
-    private void processUrlWithRetry(String url, ExtractionJob job, Path outputPath) {
+    private void processUrlWithRetry(String url, ExtractionJob job) {
         int maxAttempts = 3;
         
         // Get current attempt count from job details
@@ -212,6 +215,29 @@ public class CrawlerService {
                 
                 WebDriverWait wait = new WebDriverWait(workerDriver, Duration.ofSeconds(30));
                 String title = wait.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector("div.detail-layout-title h1"))).getText().trim();
+                
+                // Extract Date
+                String dateStr = "";
+                try {
+                    WebElement dateEl = workerDriver.findElement(By.cssSelector(".mighty-attribution-meta span"));
+                    dateStr = dateEl.getAttribute("title");
+                    if (dateStr == null || dateStr.trim().isEmpty()) {
+                        dateStr = dateEl.getText();
+                    }
+                } catch (Exception e) {
+                    logger.warn("[{}] Could not find date element for URL: {}", job.getJobId(), url);
+                }
+                
+                if (dateStr == null || dateStr.trim().isEmpty()) {
+                     logger.warn("[{}] Date string is empty for URL: {}, using today.", job.getJobId(), url);
+                     dateStr = LocalDate.now().toString();
+                } else {
+                     logger.info("[{}] Extracted date string: {}", job.getJobId(), dateStr);
+                }
+                
+                LocalDate threadDate = parseDate(dateStr);
+                Path outputPath = getOutputPath(job.getSection(), threadDate);
+
                 String content;
                 try {
                     content = workerDriver.findElement(By.cssSelector("div.detail-layout-description")).getText().trim();
@@ -221,7 +247,7 @@ public class CrawlerService {
 
                 Path filePath = outputPath.resolve(sanitizeFilename(title) + ".txt");
                 try {
-                    Files.write(filePath, ("Title: " + title + "\nURL: " + url + "\n\n" + content).getBytes(StandardCharsets.UTF_8));
+                    Files.write(filePath, ("Title: " + title + "\nDate: " + dateStr + "\nURL: " + url + "\n\n" + content).getBytes(StandardCharsets.UTF_8));
                 } catch (IOException e) {
                     logger.error("[{}] Failed to write file for URL: {}", job.getJobId(), url, e);
                 }
@@ -229,7 +255,7 @@ public class CrawlerService {
                 job.markUrlAsCompleted(url);
                 jobStore.saveJob(job);
                 success = true;
-                logger.info("[{}] Successfully processed: {}", job.getJobId(), title);
+                logger.info("[{}] Successfully processed: {} (Date: {})", job.getJobId(), title, threadDate);
 
             } catch (Exception e) {
                 logger.warn("[{}] Attempt {} failed for URL: {} - Error: {}", job.getJobId(), attempt, url, e.getMessage());
@@ -288,8 +314,8 @@ public class CrawlerService {
         return new ArrayList<>(urls);
     }
 
-    private Path getOutputPath(String seccion) throws IOException {
-        Path path = Paths.get("TearsDeepMind", "TearsMind", LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd")), seccion);
+    private Path getOutputPath(String seccion, LocalDate date) throws IOException {
+        Path path = Paths.get("TearsDeepMind", "TearsMind", date.format(DateTimeFormatter.ofPattern("yyyyMMdd")), seccion);
         Files.createDirectories(path);
         return path;
     }
@@ -338,7 +364,7 @@ public class CrawlerService {
         }
     }
 
-    private void crawlAndExtractDataSync(WebDriver driver, Path outputPath, String sectionUrl, int dias, String uuid) throws InterruptedException, IOException {
+    private void crawlAndExtractDataSync(WebDriver driver, String seccion, String sectionUrl, int dias, String uuid) throws InterruptedException, IOException {
         driver.get(sectionUrl);
         new WebDriverWait(driver, Duration.ofSeconds(20)).until(ExpectedConditions.visibilityOfElementLocated(By.id("feed-list")));
         List<String> urls = collectUrlsWithScroll(driver, dias, uuid);
@@ -346,9 +372,20 @@ public class CrawlerService {
             driver.get(url);
             Thread.sleep(2000);
             String title = driver.findElement(By.cssSelector("div.detail-layout-title h1")).getText().trim();
+            
+            String dateStr = "";
+            try {
+                dateStr = driver.findElement(By.cssSelector(".mighty-attribution-meta span")).getAttribute("title");
+            } catch (Exception e) {
+                logger.warn("[{}] Could not find date element for URL: {}", uuid, url);
+                dateStr = LocalDate.now().toString();
+            }
+            LocalDate threadDate = parseDate(dateStr);
+            Path outputPath = getOutputPath(seccion, threadDate);
+            
             String content = driver.findElement(By.cssSelector("body")).getText().trim();
             try {
-                Files.write(outputPath.resolve(sanitizeFilename(title) + ".txt"), content.getBytes(StandardCharsets.UTF_8));
+                Files.write(outputPath.resolve(sanitizeFilename(title) + ".txt"), ("Title: " + title + "\nDate: " + dateStr + "\nURL: " + url + "\n\n" + content).getBytes(StandardCharsets.UTF_8));
             } catch (IOException e) {
                 logger.error("[{}] Failed to write file for URL: {}", uuid, url, e);
             }
@@ -357,5 +394,47 @@ public class CrawlerService {
 
     private String sanitizeFilename(String name) {
         return name.replaceAll("[^a-zA-Z0-9-_.]", "_").trim();
+    }
+    
+    private LocalDate parseDate(String dateStr) {
+        try {
+            if (dateStr == null || dateStr.isEmpty()) return LocalDate.now();
+            
+            // Normalize: "Dic. 1, 2025" -> "dic 1, 2025"
+            String cleanDate = dateStr.replace(".", "").toLowerCase().trim();
+            
+            // Expected format: "mmm d, yyyy"
+            // Split by spaces: ["dic", "1,", "2025"]
+            String[] parts = cleanDate.split("\\s+");
+            if (parts.length < 3) return LocalDate.now();
+            
+            String monthStr = parts[0];
+            int day = Integer.parseInt(parts[1].replace(",", ""));
+            int year = Integer.parseInt(parts[2]);
+            
+            int month;
+            switch (monthStr) {
+                case "ene": month = 1; break;
+                case "feb": month = 2; break;
+                case "mar": month = 3; break;
+                case "abr": month = 4; break;
+                case "may": month = 5; break;
+                case "jun": month = 6; break;
+                case "jul": month = 7; break;
+                case "ago": month = 8; break;
+                case "sep": case "sept": month = 9; break;
+                case "oct": month = 10; break;
+                case "nov": month = 11; break;
+                case "dic": month = 12; break;
+                default: 
+                    logger.warn("Unknown month '{}', defaulting to today.", monthStr);
+                    return LocalDate.now();
+            }
+            
+            return LocalDate.of(year, month, day);
+        } catch (Exception e) {
+            logger.warn("Failed to parse date '{}', defaulting to today. Error: {}", dateStr, e.getMessage());
+            return LocalDate.now();
+        }
     }
 }
