@@ -31,6 +31,9 @@ public class JobStore {
     public void saveJob(ExtractionJob job) {
         activeJobs.put(job.getJobId(), job);
         try {
+            if (!Files.exists(jobsDir)) {
+                Files.createDirectories(jobsDir);
+            }
             File file = jobsDir.resolve(job.getJobId() + ".json").toFile();
             mapper.writeValue(file, job);
         } catch (IOException e) {
