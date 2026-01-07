@@ -1,0 +1,71 @@
+{
+	"info": {
+		"name": "TearsDeepMind - Memory Layer",
+		"description": "API para gestionar la memoria histórica (Daily Analysis y Quant Memory) del SP500",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Daily Analysis",
+			"item": [
+				{
+					"name": "Get All",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "http://localhost:8080/api/history/daily-analysis"
+					}
+				},
+				{
+					"name": "Get by Date",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "http://localhost:8080/api/history/daily-analysis/20251231"
+					}
+				},
+				{
+					"name": "Save/Update",
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Content-Type", "value": "application/json" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"regime\": \"bullish\",\n  \"bias\": \"neutral\",\n  \"key_levels\": [4800, 4750],\n  \"details\": {\n    \"vix\": 14.2,\n    \"sentiment\": \"greed\"\n  }\n}"
+						},
+						"url": "http://localhost:8080/api/history/daily-analysis/20251231"
+					}
+				}
+			]
+		},
+		{
+			"name": "Quant Memory",
+			"item": [
+				{
+					"name": "Get All",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "http://localhost:8080/api/history/quant-memory"
+					}
+				},
+				{
+					"name": "Save/Update",
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Content-Type", "value": "application/json" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"directional_bias\": \"bullish\",\n  \"quant_levels\": {\n    \"support\": [4780],\n    \"resistance\": [4850]\n  },\n  \"risk_level\": \"low\"\n}"
+						},
+						"url": "http://localhost:8080/api/history/quant-memory/20251231"
+					}
+				}
+			]
+		}
+	]
+}

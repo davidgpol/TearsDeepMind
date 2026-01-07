@@ -282,11 +282,28 @@ public class CrawlerService {
         logger.info("[{}] Starting URL collection scroll loop. Target: {}", uuid, target);
 
         for (int i = 0; i < 300; i++) { 
-            List<WebElement> links = driver.findElements(By.cssSelector("#feed-list a.feed-item-post"));
-            for (WebElement l : links) {
-                String href = l.getAttribute("href");
-                if (href != null) urls.add(href);
+            // SeniorDeveloperAgent: Refined selector to target items within their parent container (li.feed-item)
+            // This ensures we are strictly entering the link that is in this parent tag.
+            List<WebElement> items = driver.findElements(By.cssSelector("#feed-list li.feed-item"));
+            
+            for (WebElement item : items) {
+                try {
+                    // Try to find the link within the item context
+                    // We target .feed-item-post which is the class for the article link (title/image)
+                    List<WebElement> postLinks = item.findElements(By.cssSelector("a.feed-item-post"));
+                    for (WebElement link : postLinks) {
+                        String href = link.getAttribute("href");
+                        if (href != null && !href.isEmpty() && !urls.contains(href)) {
+                            urls.add(href);
+                            // Log found URL for debugging confirmation
+                            logger.debug("[{}] Found valid post URL: {}", uuid, href);
+                        }
+                    }
+                } catch (Exception e) {
+                    // Ignore stale elements or items without links during iteration
+                }
             }
+
             logger.debug("[{}] Scroll cycle {}: Found {} URLs so far. Last size: {}. No growth attempts: {}", uuid, i, urls.size(), lastSize, noGrowth);
             
             if (urls.size() >= target) {
@@ -303,8 +320,15 @@ public class CrawlerService {
             }
             
             lastSize = urls.size();
-            if (!links.isEmpty()) {
-                js.executeScript("arguments[0].scrollIntoView(true);", links.get(links.size() - 1));
+            
+            // Scroll to the last item found to trigger infinite scroll load
+            if (!items.isEmpty()) {
+                try {
+                    js.executeScript("arguments[0].scrollIntoView(true);", items.get(items.size() - 1));
+                } catch (Exception e) {
+                    // Fallback if element is stale
+                    js.executeScript("window.scrollTo(0, document.body.scrollHeight);");
+                }
             } else {
                  js.executeScript("window.scrollTo(0, document.body.scrollHeight);");
             }
@@ -315,7 +339,7 @@ public class CrawlerService {
     }
 
     private Path getOutputPath(String seccion, LocalDate date) throws IOException {
-        Path path = Paths.get("TearsDeepMind", "TearsMind", date.format(DateTimeFormatter.ofPattern("yyyyMMdd")), seccion);
+        Path path = Paths.get("TearsMind", date.format(DateTimeFormatter.ofPattern("yyyyMMdd")), seccion);
         Files.createDirectories(path);
         return path;
     }
@@ -366,28 +390,53 @@ public class CrawlerService {
 
     private void crawlAndExtractDataSync(WebDriver driver, String seccion, String sectionUrl, int dias, String uuid) throws InterruptedException, IOException {
         driver.get(sectionUrl);
-        new WebDriverWait(driver, Duration.ofSeconds(20)).until(ExpectedConditions.visibilityOfElementLocated(By.id("feed-list")));
+        WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(30));
+        wait.until(ExpectedConditions.visibilityOfElementLocated(By.id("feed-list")));
+        
         List<String> urls = collectUrlsWithScroll(driver, dias, uuid);
-        for (String url : urls.subList(0, Math.min(urls.size(), dias))) {
-            driver.get(url);
-            Thread.sleep(2000);
-            String title = driver.findElement(By.cssSelector("div.detail-layout-title h1")).getText().trim();
-            
-            String dateStr = "";
+        // Limit to target 'dias' if collected more
+        List<String> targetUrls = urls.subList(0, Math.min(urls.size(), dias));
+        
+        for (String url : targetUrls) {
             try {
-                dateStr = driver.findElement(By.cssSelector(".mighty-attribution-meta span")).getAttribute("title");
+                driver.get(url);
+                // Wait for title visibility instead of fixed sleep
+                String title = wait.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector("div.detail-layout-title h1"))).getText().trim();
+                
+                // Extract Date (Match async logic)
+                String dateStr = "";
+                try {
+                    WebElement dateEl = driver.findElement(By.cssSelector(".mighty-attribution-meta span"));
+                    dateStr = dateEl.getAttribute("title");
+                    if (dateStr == null || dateStr.trim().isEmpty()) {
+                        dateStr = dateEl.getText();
+                    }
+                } catch (Exception e) {
+                    logger.warn("[{}] Could not find date element for URL: {}", uuid, url);
+                }
+                
+                if (dateStr == null || dateStr.trim().isEmpty()) {
+                     logger.warn("[{}] Date string is empty for URL: {}, using today.", uuid, url);
+                     dateStr = LocalDate.now().toString();
+                }
+
+                LocalDate threadDate = parseDate(dateStr);
+                Path outputPath = getOutputPath(seccion, threadDate);
+                
+                // Extract Content (Match async logic: specific div first, then body)
+                String content;
+                try {
+                    content = driver.findElement(By.cssSelector("div.detail-layout-description")).getText().trim();
+                } catch (Exception e) {
+                    content = driver.findElement(By.cssSelector("body")).getText().trim();
+                }
+
+                Path filePath = outputPath.resolve(sanitizeFilename(title) + ".txt");
+                Files.write(filePath, ("Title: " + title + "\nDate: " + dateStr + "\nURL: " + url + "\n\n" + content).getBytes(StandardCharsets.UTF_8));
+                logger.info("[{}] Sync processed: {} (Date: {})", uuid, title, threadDate);
+
             } catch (Exception e) {
-                logger.warn("[{}] Could not find date element for URL: {}", uuid, url);
-                dateStr = LocalDate.now().toString();
-            }
-            LocalDate threadDate = parseDate(dateStr);
-            Path outputPath = getOutputPath(seccion, threadDate);
-            
-            String content = driver.findElement(By.cssSelector("body")).getText().trim();
-            try {
-                Files.write(outputPath.resolve(sanitizeFilename(title) + ".txt"), ("Title: " + title + "\nDate: " + dateStr + "\nURL: " + url + "\n\n" + content).getBytes(StandardCharsets.UTF_8));
-            } catch (IOException e) {
-                logger.error("[{}] Failed to write file for URL: {}", uuid, url, e);
+                logger.error("[{}] Sync extraction failed for URL: {}", uuid, url, e.getMessage());
             }
         }
     }

@@ -3,3 +3,6 @@ TearsMind/
 target/
 .env
 logs/
+data/
+*.db
+*.log
