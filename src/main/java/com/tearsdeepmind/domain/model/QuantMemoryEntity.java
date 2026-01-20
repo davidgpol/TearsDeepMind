@@ -4,7 +4,7 @@ import javax.persistence.*;
 import java.util.Map;
 
 @Entity
-@Table(name = "quant_memory")
+@Table(name = "quant_memory", schema = "analysis")
 public class QuantMemoryEntity {
 
     @Id

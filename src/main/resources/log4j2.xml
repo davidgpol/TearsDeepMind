@@ -4,8 +4,8 @@
         <Console name="Console" target="SYSTEM_OUT">
             <PatternLayout pattern="%d{HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg{nolookups}%n"/>
         </Console>
-        <RollingFile name="RollingFile" fileName="C:\Users\david\.gemini\TearsDeepMind\logs\tearsdeepmind.log"
-                     filePattern="C:\Users\david\.gemini\TearsDeepMind\logs\tearsdeepmind-%d{MM-dd-yyyy}-%i.log.gz">
+        <RollingFile name="RollingFile" fileName="logs/tearsdeepmind.log"
+                     filePattern="logs/tearsdeepmind-%d{MM-dd-yyyy}-%i.log.gz">
             <PatternLayout>
                 <Pattern>%d %p %c{1.} [%t] %m{nolookups}%n</Pattern>
             </PatternLayout>

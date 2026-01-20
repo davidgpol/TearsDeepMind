@@ -1,0 +1,54 @@
+services:
+  tears-db:
+    image: public.ecr.aws/docker/library/postgres:16-alpine
+    container_name: tears-db
+    environment:
+      POSTGRES_DB: tearsmind
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: tearsmind_pwd
+    ports:
+      - "5432:5432"
+    networks:
+      - tears-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  tears-selenium:
+    image: selenium/standalone-chrome:latest
+    container_name: tears-selenium
+    shm_size: 2gb
+    networks:
+      - tears-net
+    ports:
+      - "4444:4444"
+
+  tears-app:
+    build:
+      context: .
+      dockerfile: docker/app/Dockerfile
+    container_name: tears-app
+    depends_on:
+      tears-db:
+        condition: service_healthy
+      tears-selenium:
+        condition: service_started
+    environment:
+      DB_URL: jdbc:postgresql://tears-db:5432/tearsmind
+      DB_USER: postgres
+      DB_PASSWORD: tearsmind_pwd
+      CRAWLER_EMAIL: ${CRAWLER_EMAIL}
+      CRAWLER_PASSWORD: ${CRAWLER_PASSWORD}
+      SELENIUM_REMOTE_URL: http://tears-selenium:4444/wd/hub
+    volumes:
+      - ../../Volumes/TearsMind:/app/TearsMind:Z
+    ports:
+      - "8080:8080"
+    networks:
+      - tears-net
+
+networks:
+  tears-net:
+    driver: bridge

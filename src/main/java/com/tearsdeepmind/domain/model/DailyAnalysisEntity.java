@@ -4,7 +4,7 @@ import javax.persistence.*;
 import java.util.Map;
 
 @Entity
-@Table(name = "daily_analysis")
+@Table(name = "daily_analysis", schema = "analysis")
 public class DailyAnalysisEntity {
 
     @Id
