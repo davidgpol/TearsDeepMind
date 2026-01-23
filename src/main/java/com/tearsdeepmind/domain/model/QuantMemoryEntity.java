@@ -1,6 +1,6 @@
 package com.tearsdeepmind.domain.model;
 
-import javax.persistence.*;
+import jakarta.persistence.*;
 import java.util.Map;
 
 @Entity

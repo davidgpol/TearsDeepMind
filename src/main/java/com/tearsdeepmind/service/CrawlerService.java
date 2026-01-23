@@ -20,8 +20,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
-import javax.annotation.PostConstruct;
-import javax.annotation.PreDestroy;
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URL;
@@ -53,6 +53,9 @@ public class CrawlerService {
     @Value("${crawler.headless:true}")
     private boolean headless;
 
+    @Value("${crawler.output.dir:/app/TearsMind}")
+    private String outputDir;
+
     @Autowired
     private JobStore jobStore;
 
@@ -61,6 +64,8 @@ public class CrawlerService {
     @PostConstruct
     public void init() {
         this.browserPool = Executors.newFixedThreadPool(3);
+        logger.info("CrawlerService initialized. Output Dir: {}", outputDir);
+        logger.info("Credentials configured: {}", (email != null && !email.isEmpty() && password != null && !password.isEmpty()));
     }
 
     @PreDestroy
@@ -285,6 +290,9 @@ public class CrawlerService {
                 success = true;
 
             } catch (Exception e) {
+                if (workerDriver != null) {
+                    saveDebugHtml(workerDriver, job.getJobId(), url);
+                }
                 job.markUrlAsFailed(url, e.getMessage());
                 jobStore.saveJob(job);
                 if (attempt < maxAttempts) {
@@ -459,8 +467,10 @@ public class CrawlerService {
     }
 
     private Path getOutputPath(String seccion, LocalDate date) throws IOException {
-        Path path = Paths.get("TearsMind", date.format(DateTimeFormatter.ofPattern("yyyyMMdd")), seccion);
-        Files.createDirectories(path);
+        Path path = Paths.get(outputDir, date.format(DateTimeFormatter.ofPattern("yyyyMMdd")), seccion);
+        if (!Files.exists(path)) {
+            Files.createDirectories(path);
+        }
         return path;
     }
 
@@ -478,6 +488,9 @@ public class CrawlerService {
         try {
             if (dateStr == null || dateStr.isEmpty()) return LocalDate.now();
             String cleanDate = dateStr.replace(".", "").toLowerCase().trim();
+            // Remove "th", "st", "nd", "rd" from day numbers if present (e.g. "Jan 1st")
+            cleanDate = cleanDate.replaceAll("(\\d+)(st|nd|rd|th)", "$1");
+            
             String[] parts = cleanDate.split("\\s+");
             if (parts.length < 3) return LocalDate.now();
             
@@ -487,23 +500,39 @@ public class CrawlerService {
             
             int month;
             switch (monthStr) {
-                case "ene": month = 1; break;
-                case "feb": month = 2; break;
-                case "mar": month = 3; break;
-                case "abr": month = 4; break;
-                case "may": month = 5; break;
-                case "jun": month = 6; break;
-                case "jul": month = 7; break;
-                case "ago": month = 8; break;
+                case "ene": case "jan": month = 1; break;
+                case "feb":             month = 2; break;
+                case "mar":             month = 3; break;
+                case "abr": case "apr": month = 4; break;
+                case "may":             month = 5; break;
+                case "jun":             month = 6; break;
+                case "jul":             month = 7; break;
+                case "ago": case "aug": month = 8; break;
                 case "sep": case "sept": month = 9; break;
-                case "oct": month = 10; break;
-                case "nov": month = 11; break;
-                case "dic": month = 12; break;
+                case "oct":             month = 10; break;
+                case "nov":             month = 11; break;
+                case "dic": case "dec": month = 12; break;
                 default: return LocalDate.now();
             }
             return LocalDate.of(year, month, day);
         } catch (Exception e) {
+            logger.warn("Date parse error for input '{}': {}", dateStr, e.getMessage());
             return LocalDate.now();
+        }
+    }
+
+    private void saveDebugHtml(WebDriver driver, String jobId, String url) {
+        try {
+            Path debugDir = Paths.get(outputDir, "debug");
+            if (!Files.exists(debugDir)) {
+                Files.createDirectories(debugDir);
+            }
+            String filename = jobId + "_" + sanitizeFilename(url) + ".html";
+            Path debugFile = debugDir.resolve(filename);
+            Files.write(debugFile, driver.getPageSource().getBytes(StandardCharsets.UTF_8));
+            logger.info("Saved debug HTML to: {}", debugFile);
+        } catch (Exception ex) {
+            logger.error("Failed to save debug HTML", ex);
         }
     }
 }

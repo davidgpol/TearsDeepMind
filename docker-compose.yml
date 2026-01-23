@@ -17,7 +17,7 @@ services:
       retries: 5
 
   tears-selenium:
-    image: selenium/standalone-chrome:latest
+    image: seleniarm/standalone-chromium:latest
     container_name: tears-selenium
     shm_size: 2gb
     networks:
