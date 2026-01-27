@@ -3,10 +3,12 @@ package com.tearsdeepmind.service;
 import com.tearsdeepmind.dto.CheckReportResponse;
 import com.tearsdeepmind.model.ExtractionJob;
 import com.tearsdeepmind.model.JobStatus;
+import com.tearsdeepmind.model.SessionContext;
 import io.github.bonigarcia.wdm.WebDriverManager;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.openqa.selenium.By;
+import org.openqa.selenium.Cookie;
 import org.openqa.selenium.JavascriptExecutor;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebElement;
@@ -42,7 +44,8 @@ import java.util.concurrent.Executors;
 public class CrawlerService {
 
     private static final Logger logger = LogManager.getLogger(CrawlerService.class);
-    private static final String LOGIN_URL = "https://tradingedge.club/sign_in";
+    private static final String BASE_URL = "https://tradingedge.club";
+    private static final String LOGIN_URL = BASE_URL + "/sign_in";
 
     @Value("${crawler.email}")
     private String email;
@@ -59,12 +62,16 @@ public class CrawlerService {
     @Autowired
     private JobStore jobStore;
 
+    @Autowired
+    private MonitoringService monitoringService;
+
     private ExecutorService browserPool;
+    private final java.util.concurrent.Semaphore semaphore = new java.util.concurrent.Semaphore(5);
 
     @PostConstruct
     public void init() {
-        this.browserPool = Executors.newFixedThreadPool(3);
-        logger.info("CrawlerService initialized. Output Dir: {}", outputDir);
+        this.browserPool = Executors.newVirtualThreadPerTaskExecutor();
+        logger.info("CrawlerService initialized with Virtual Threads. Output Dir: {}", outputDir);
         logger.info("Credentials configured: {}", (email != null && !email.isEmpty() && password != null && !password.isEmpty()));
     }
 
@@ -181,13 +188,13 @@ public class CrawlerService {
         String jobId = UUID.randomUUID().toString().substring(0, 8);
         ExtractionJob job = new ExtractionJob(jobId, seccion, dias);
         jobStore.saveJob(job);
-        CompletableFuture.runAsync(() -> orchestrateAsyncJob(job));
+        CompletableFuture.runAsync(() -> orchestrateAsyncJob(job), browserPool);
         return jobId;
     }
 
     private void orchestrateAsyncJob(ExtractionJob job) {
         String uuid = job.getJobId();
-        logger.info("[{}] Starting orchestrator for job {}", uuid, job.getJobId());
+        logger.info("[{}] Starting Industrial Orchestrator for job {}", uuid, job.getJobId());
         WebDriver masterDriver = null;
 
         try {
@@ -195,6 +202,14 @@ public class CrawlerService {
             jobStore.saveJob(job);
             
             masterDriver = login(email, password, uuid);
+            monitoringService.publish(new com.tearsdeepmind.model.CrawlerEvent(uuid, "SESSION_INIT", null, 0, 0, "Master Login successful. Capturing session..."));
+
+            // Capture Session Context for sharing
+            Set<Cookie> cookies = masterDriver.manage().getCookies();
+            String localStorage = (String) ((JavascriptExecutor) masterDriver).executeScript("return JSON.stringify(localStorage);");
+            SessionContext session = new SessionContext(cookies, localStorage);
+            logger.info("[{}] Session captured. Reusing for workers.", uuid);
+
             masterDriver.get(getSectionUrl(job.getSection()));
             
             List<String> urls = collectUrlsWithScroll(masterDriver, job.getTargetDays(), uuid);
@@ -205,11 +220,13 @@ public class CrawlerService {
                 job.setStatus(JobStatus.FAILED);
                 job.setEndTime(LocalDateTime.now());
                 jobStore.saveJob(job);
+                monitoringService.publish(new com.tearsdeepmind.model.CrawlerEvent(uuid, "JOB_FAILED", null, 0, 0, "No URLs discovered."));
                 return;
             } else if (urls.isEmpty() && job.getTargetDays() == 0) {
                 job.setStatus(JobStatus.COMPLETED);
                 job.setEndTime(LocalDateTime.now());
                 jobStore.saveJob(job);
+                monitoringService.publish(new com.tearsdeepmind.model.CrawlerEvent(uuid, "JOB_FINISHED", null, 0, 0, "No items to extract."));
                 return;
             }
 
@@ -221,10 +238,11 @@ public class CrawlerService {
 
             job.setStatus(JobStatus.EXTRACTING);
             jobStore.saveJob(job);
+            monitoringService.publish(new com.tearsdeepmind.model.CrawlerEvent(uuid, "JOB_STARTED", null, 0, urls.size(), "Discovery complete. Starting parallel downloads."));
 
             List<CompletableFuture<Void>> futures = new ArrayList<>();
             for (String url : urls) {
-                futures.add(CompletableFuture.runAsync(() -> processUrlWithRetry(url, job), browserPool));
+                futures.add(CompletableFuture.runAsync(() -> processUrlWithSession(url, session, job), browserPool));
             }
 
             CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
@@ -232,18 +250,20 @@ public class CrawlerService {
             job.setStatus(job.getFailedCount() == 0 ? JobStatus.COMPLETED : JobStatus.PARTIALLY_COMPLETED);
             job.setEndTime(LocalDateTime.now());
             jobStore.saveJob(job);
+            monitoringService.publish(new com.tearsdeepmind.model.CrawlerEvent(uuid, "JOB_FINISHED", null, job.getCompletedCount(), job.getTotalThreads(), "Job finished with status: " + job.getStatus()));
 
         } catch (Exception e) {
-            logger.error("[{}] Fatal error in job orchestrator for job {}", uuid, job.getJobId(), e);
+            logger.error("[{}] Fatal error in Industrial Orchestrator", uuid, e);
             job.setStatus(JobStatus.FAILED);
             job.setEndTime(LocalDateTime.now());
             jobStore.saveJob(job);
+            monitoringService.publish(new com.tearsdeepmind.model.CrawlerEvent(uuid, "JOB_FAILED", null, 0, 0, e.getMessage()));
         } finally {
             if (masterDriver != null) masterDriver.quit();
         }
     }
 
-    private void processUrlWithRetry(String url, ExtractionJob job) {
+    private void processUrlWithSession(String url, SessionContext session, ExtractionJob job) {
         int maxAttempts = 3;
         ExtractionJob.ThreadTaskStatus taskStatus = job.getTaskDetails().computeIfAbsent(url, k -> new ExtractionJob.ThreadTaskStatus(url));
         int attempt = taskStatus.getRetries();
@@ -253,7 +273,9 @@ public class CrawlerService {
             attempt++;
             WebDriver workerDriver = null;
             try {
-                workerDriver = login(email, password, job.getJobId() + "-worker-" + attempt);
+                semaphore.acquire();
+                logger.info("[{}] Worker slot acquired. Starting download: {}", job.getJobId(), url);
+                workerDriver = createDriverWithSession(session, job.getJobId() + "-worker-" + attempt);
                 workerDriver.get(url);
                 
                 WebDriverWait wait = new WebDriverWait(workerDriver, Duration.ofSeconds(30));
@@ -266,9 +288,7 @@ public class CrawlerService {
                     if (dateStr == null || dateStr.trim().isEmpty()) {
                         dateStr = dateEl.getText();
                     }
-                } catch (Exception e) {
-                    logger.warn("[{}] Could not find date element for URL: {}", job.getJobId(), url);
-                }
+                } catch (Exception e) {}
                 
                 if (dateStr == null || dateStr.trim().isEmpty()) dateStr = LocalDate.now().toString();
                 
@@ -287,102 +307,97 @@ public class CrawlerService {
                 
                 job.markUrlAsCompleted(url);
                 jobStore.saveJob(job);
+                monitoringService.publish(new com.tearsdeepmind.model.CrawlerEvent(job.getJobId(), "ITEM_COMPLETED", title, job.getCompletedCount(), job.getTotalThreads(), "Downloaded successfully."));
                 success = true;
 
             } catch (Exception e) {
-                if (workerDriver != null) {
-                    saveDebugHtml(workerDriver, job.getJobId(), url);
-                }
+                if (workerDriver != null) saveDebugHtml(workerDriver, job.getJobId(), url);
                 job.markUrlAsFailed(url, e.getMessage());
                 jobStore.saveJob(job);
                 if (attempt < maxAttempts) {
-                    try { Thread.sleep(5000L * attempt); } catch (InterruptedException ignored) {}
+                    try { Thread.sleep(2000L * attempt); } catch (InterruptedException ignored) {}
                 } 
             } finally {
                 if (workerDriver != null) workerDriver.quit();
+                semaphore.release();
             }
         }
     }
 
-    private WebDriver login(String email, String password, String uuid) throws InterruptedException, MalformedURLException {
+    private WebDriver createDriverWithSession(SessionContext session, String uuid) throws MalformedURLException {
+        WebDriver driver = createBaseDriver(uuid);
+        // Navigate to domain first to set cookies
+        driver.get(BASE_URL + "/robots.txt"); 
+        for (Cookie cookie : session.cookies()) {
+            driver.manage().addCookie(cookie);
+        }
+        // Inject LocalStorage
+        if (session.localStorageJson() != null) {
+            ((JavascriptExecutor) driver).executeScript(
+                "var data = JSON.parse(arguments[0]);" +
+                "for (var key in data) { localStorage.setItem(key, data[key]); }", 
+                session.localStorageJson()
+            );
+        }
+        return driver;
+    }
+
+    private WebDriver createBaseDriver(String uuid) throws MalformedURLException {
+        ChromeOptions options = getCommonOptions();
+        String remoteUrl = System.getenv("SELENIUM_REMOTE_URL");
+        if (remoteUrl != null && !remoteUrl.isEmpty()) {
+            logger.info("[{}] Connecting to Remote Selenium at: {}", uuid, remoteUrl);
+            return new RemoteWebDriver(new URL(remoteUrl), options);
+        } else {
+            String os = System.getProperty("os.name").toLowerCase();
+            if (!os.contains("linux")) WebDriverManager.chromedriver().setup();
+            if (headless) options.addArguments("--headless=new");
+            return new ChromeDriver(options);
+        }
+    }
+
+    private ChromeOptions getCommonOptions() {
         ChromeOptions options = new ChromeOptions();
-        // Stealth & Stability settings
-        options.addArguments("--disable-gpu");
-        options.addArguments("--window-size=1920,1080");
-        options.addArguments("--remote-allow-origins=*");
-        options.addArguments("--no-sandbox");
-        options.addArguments("--disable-dev-shm-usage");
-        
-        // Anti-Detection / WAF Bypass
+        options.addArguments("--disable-gpu", "--window-size=1920,1080", "--remote-allow-origins=*", "--no-sandbox", "--disable-dev-shm-usage");
         options.addArguments("--disable-blink-features=AutomationControlled");
         options.addArguments("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
         options.setExperimentalOption("excludeSwitches", Arrays.asList("enable-automation", "enable-logging"));
         options.setExperimentalOption("useAutomationExtension", false);
-        
-        // Corporate Proxy SSL Bypass
-        options.addArguments("--ignore-certificate-errors");
-        options.addArguments("--ignore-ssl-errors=yes");
-        options.addArguments("--allow-insecure-localhost");
+        options.addArguments("--ignore-certificate-errors", "--ignore-ssl-errors=yes", "--allow-insecure-localhost");
+        return options;
+    }
 
-        String remoteUrl = System.getenv("SELENIUM_REMOTE_URL");
-        WebDriver driver;
-        
-        if (remoteUrl != null && !remoteUrl.isEmpty()) {
-            logger.info("[{}] Connecting to Remote Selenium at: {}", uuid, remoteUrl);
-            driver = new RemoteWebDriver(new URL(remoteUrl), options);
-        } else {
-            String os = System.getProperty("os.name").toLowerCase();
-            if (!os.contains("linux")) {
-                WebDriverManager.chromedriver().setup();
-            }
-            if (headless) options.addArguments("--headless=new");
-            driver = new ChromeDriver(options);
-        }
-
+    private WebDriver login(String email, String password, String uuid) throws InterruptedException, MalformedURLException {
+        WebDriver driver = createBaseDriver(uuid);
         driver.manage().timeouts().pageLoadTimeout(Duration.ofSeconds(90));
-        // JS Bypass for navigator.webdriver
+        
         try {
             ((JavascriptExecutor) driver).executeScript("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})");
-        } catch (Exception e) {
-            logger.warn("[{}] Could not inject JS bypass: {}", uuid, e.getMessage());
-        }
+        } catch (Exception e) {}
 
         driver.get(LOGIN_URL);
-        logger.info("[{}] Navigated to login page. Waiting 15s for Cloudflare challenge...", uuid);
+        logger.info("[{}] Waiting 15s for Cloudflare...", uuid);
         Thread.sleep(15000); 
         
         WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(60));
         try {
-            // Check if we are stuck on Cloudflare challenge
-            String pageTitle = driver.getTitle();
-            logger.info("[{}] Page Title: {}", uuid, pageTitle);
-            
             wait.until(d -> ((JavascriptExecutor) d).executeScript("return document.readyState").equals("complete"));
-            wait.until(ExpectedConditions.presenceOfElementLocated(By.name("email")));
-            
-            // Interaction
             WebElement emailField = wait.until(ExpectedConditions.elementToBeClickable(By.name("email")));
-            emailField.clear();
             emailField.sendKeys(email);
-            
             WebElement passField = wait.until(ExpectedConditions.elementToBeClickable(By.name("password")));
-            passField.clear();
             passField.sendKeys(password);
             
-            // SeniorDeveloperAgent: Use CSS selector for submit button to avoid encoding/language issues
-            // Usually it's an input of type submit or a button inside the form
             try {
                 wait.until(ExpectedConditions.elementToBeClickable(By.cssSelector("input[type='submit'], button[type='submit']"))).click();
             } catch (Exception e) {
-                // Fallback to form submit
                 passField.submit();
             }
             
-            new WebDriverWait(driver, Duration.ofSeconds(30)).until(ExpectedConditions.not(ExpectedConditions.urlContains("sign_in")));
+            wait.until(ExpectedConditions.not(ExpectedConditions.urlContains("sign_in")));
             logger.info("[{}] Login successful.", uuid);
             return driver;
         } catch (Exception e) {
-            logger.error("[{}] Login failed. Title: {}, Error: {}", uuid, driver.getTitle(), e.getMessage());
+            logger.error("[{}] Login failed: {}", uuid, e.getMessage());
             if(driver != null) driver.quit();
             throw e;
         }
@@ -440,30 +455,63 @@ public class CrawlerService {
         int lastSize = 0;
         int noGrowth = 0;
 
-        for (int i = 0; i < 300; i++) { 
-            List<WebElement> items = driver.findElements(By.cssSelector("#feed-list li.feed-item"));
-            for (WebElement item : items) {
+        logger.info("[{}] Starting discovery. Target: {} URLs.", uuid, target);
+
+        for (int i = 0; i < 100; i++) { 
+            // Broaden search to find any post link in the feed area
+            List<WebElement> postLinks = driver.findElements(By.cssSelector("a.feed-item-post, a[href*='/posts/']"));
+            for (WebElement link : postLinks) {
                 try {
-                    List<WebElement> postLinks = item.findElements(By.cssSelector("a.feed-item-post"));
-                    for (WebElement link : postLinks) {
-                        String href = link.getAttribute("href");
-                        if (href != null && !href.isEmpty() && !urls.contains(href)) {
-                            urls.add(href);
-                        }
+                    String href = link.getAttribute("href");
+                    if (href != null && href.contains("/posts/") && !href.contains("/comments") && !urls.contains(href)) {
+                        urls.add(href);
                     }
                 } catch (Exception e) {}
             }
 
-            if (urls.size() >= target) break;
+            logger.info("[{}] Discovery iteration {}: Found {} unique URLs so far.", uuid, i, urls.size());
+
+            if (urls.size() >= target) {
+                logger.info("[{}] Discovery target reached.", uuid);
+                break;
+            }
             
-            if (urls.size() == lastSize) noGrowth++; else noGrowth = 0;
-            if (noGrowth >= 5) break;
+            if (urls.size() == lastSize) {
+                noGrowth++;
+            } else {
+                noGrowth = 0;
+            }
+
+            if (noGrowth >= 10) { // Increased tolerance
+                logger.warn("[{}] Discovery stopped: No growth in URLs after 10 scrolls.", uuid);
+                break;
+            }
             
             lastSize = urls.size();
-            js.executeScript("window.scrollTo(0, document.body.scrollHeight);");
+            
+            // Refined Scroll: Find the last discovered post and scroll it into view
+            if (!postLinks.isEmpty()) {
+                try {
+                    WebElement lastElement = postLinks.get(postLinks.size() - 1);
+                    js.executeScript("arguments[0].scrollIntoView(true);", lastElement);
+                    logger.info("[{}] Scrolled to last element found.", uuid);
+                } catch (Exception e) {
+                    js.executeScript("window.scrollTo(0, document.body.scrollHeight);");
+                }
+            } else {
+                js.executeScript("window.scrollTo(0, document.body.scrollHeight);");
+            }
+
             Thread.sleep(3000);
+            
+            if (noGrowth > 5 && urls.size() < target) {
+                // Emergency save of discovery page structure
+                saveDebugHtml(driver, uuid, "discovery_failure_at_" + urls.size());
+            }
         }
-        return new ArrayList<>(urls);
+        
+        List<String> result = new ArrayList<>(urls);
+        return result.size() > target ? result.subList(0, target) : result;
     }
 
     private Path getOutputPath(String seccion, LocalDate date) throws IOException {

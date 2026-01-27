@@ -54,6 +54,10 @@ public class ExtractionJob {
         }
     }
 
+    public int getCompletedCount() {
+        return completedUrls.size();
+    }
+
     // Getters and Setters
     public String getJobId() { return jobId; }
     public void setJobId(String jobId) { this.jobId = jobId; }
