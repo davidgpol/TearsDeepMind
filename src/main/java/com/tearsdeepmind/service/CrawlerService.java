@@ -368,36 +368,57 @@ public class CrawlerService {
     }
 
     private WebDriver login(String email, String password, String uuid) throws InterruptedException, MalformedURLException {
+        logger.info("[{}] --- Iniciando proceso de login (Flujo de 2 pasos) ---", uuid);
         WebDriver driver = createBaseDriver(uuid);
         driver.manage().timeouts().pageLoadTimeout(Duration.ofSeconds(90));
         
         try {
             ((JavascriptExecutor) driver).executeScript("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})");
-        } catch (Exception e) {}
+        } catch (Exception e) {
+            logger.warn("[{}] No se pudo ocultar el flag del WebDriver.", uuid);
+        }
 
+        logger.info("[{}] Navegando a: {}", uuid, LOGIN_URL);
         driver.get(LOGIN_URL);
-        logger.info("[{}] Waiting 15s for Cloudflare...", uuid);
+        
+        // Espera inicial para Cloudflare o carga de scripts base
         Thread.sleep(15000); 
         
         WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(60));
         try {
             wait.until(d -> ((JavascriptExecutor) d).executeScript("return document.readyState").equals("complete"));
+            
+            // --- PASO 1: Email ---
+            logger.info("[{}] Paso 1: Introduciendo email...", uuid);
             WebElement emailField = wait.until(ExpectedConditions.elementToBeClickable(By.name("email")));
+            emailField.clear();
             emailField.sendKeys(email);
-            WebElement passField = wait.until(ExpectedConditions.elementToBeClickable(By.name("password")));
+            
+            logger.info("[{}] Haciendo clic en 'Siguiente' para el email...", uuid);
+            WebElement nextButton = wait.until(ExpectedConditions.elementToBeClickable(By.cssSelector("a.mighty-btn-filled-theme-color-button")));
+            nextButton.click();
+            
+            // --- PASO 2: Password ---
+            logger.info("[{}] Paso 2: Esperando a que el campo de contraseña sea visible...", uuid);
+            WebElement passField = wait.until(ExpectedConditions.visibilityOfElementLocated(By.name("password")));
+            logger.info("[{}] Campo de contraseña detectado. Introduciendo password...", uuid);
+            passField.clear();
             passField.sendKeys(password);
             
-            try {
-                wait.until(ExpectedConditions.elementToBeClickable(By.cssSelector("input[type='submit'], button[type='submit']"))).click();
-            } catch (Exception e) {
-                passField.submit();
-            }
+            logger.info("[{}] Haciendo clic en 'Siguiente' para finalizar login...", uuid);
+            // Re-localizamos el botón ya que el DOM puede haber cambiado tras el primer clic
+            WebElement submitButton = wait.until(ExpectedConditions.elementToBeClickable(By.cssSelector("a.mighty-btn-filled-theme-color-button")));
+            submitButton.click();
             
+            // --- PASO 3: Validación ---
+            logger.info("[{}] Validando redirección post-login...", uuid);
             wait.until(ExpectedConditions.not(ExpectedConditions.urlContains("sign_in")));
-            logger.info("[{}] Login successful.", uuid);
+            
+            logger.info("[{}] Login completado con éxito.", uuid);
             return driver;
         } catch (Exception e) {
-            logger.error("[{}] Login failed: {}", uuid, e.getMessage());
+            logger.error("[{}] >>> ERROR CRÍTICO EN LOGIN: {}", uuid, e.getMessage());
+            saveDebugHtml(driver, uuid, "login_failure");
             if(driver != null) driver.quit();
             throw e;
         }
