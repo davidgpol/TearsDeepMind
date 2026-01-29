@@ -1,7 +1,7 @@
 package com.tearsdeepmind.controller;
 
-import com.tearsdeepmind.domain.model.DailyAnalysisEntity;
-import com.tearsdeepmind.domain.model.QuantMemoryEntity;
+import com.tearsdeepmind.entity.DailyAnalysisEntity;
+import com.tearsdeepmind.entity.QuantMemoryEntity;
 import com.tearsdeepmind.service.HistoryService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;

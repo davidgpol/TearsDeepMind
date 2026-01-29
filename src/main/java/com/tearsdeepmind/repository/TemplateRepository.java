@@ -1,6 +1,6 @@
 package com.tearsdeepmind.repository;
 
-import com.tearsdeepmind.domain.model.TemplateEntity;
+import com.tearsdeepmind.entity.TemplateEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 

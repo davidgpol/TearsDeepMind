@@ -1,11 +1,11 @@
-package com.tearsdeepmind.domain.model;
+package com.tearsdeepmind.entity;
 
 import jakarta.persistence.*;
 import java.util.Map;
 
 @Entity
-@Table(name = "daily_analysis", schema = "analysis")
-public class DailyAnalysisEntity {
+@Table(name = "quant_memory", schema = "analysis")
+public class QuantMemoryEntity {
 
     @Id
     @Column(name = "date", nullable = false)
@@ -15,9 +15,9 @@ public class DailyAnalysisEntity {
     @Column(name = "data", columnDefinition = "TEXT", nullable = false)
     private Map<String, Object> data;
 
-    public DailyAnalysisEntity() {}
+    public QuantMemoryEntity() {}
 
-    public DailyAnalysisEntity(String date, Map<String, Object> data) {
+    public QuantMemoryEntity(String date, Map<String, Object> data) {
         this.date = date;
         this.data = data;
     }

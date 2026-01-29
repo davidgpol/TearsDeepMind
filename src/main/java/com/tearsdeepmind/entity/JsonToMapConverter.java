@@ -1,4 +1,4 @@
-package com.tearsdeepmind.domain.model;
+package com.tearsdeepmind.entity;
 
 import jakarta.persistence.AttributeConverter;
 import jakarta.persistence.Converter;

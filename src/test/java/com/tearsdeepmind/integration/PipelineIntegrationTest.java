@@ -1,6 +1,6 @@
 package com.tearsdeepmind.integration;
 
-import com.tearsdeepmind.domain.model.DailyAnalysisEntity;
+import com.tearsdeepmind.entity.DailyAnalysisEntity;
 import com.tearsdeepmind.dto.DailyAnalysisDto;
 import com.tearsdeepmind.dto.QuantMemoryDto;
 import com.tearsdeepmind.repository.DailyAnalysisRepository;

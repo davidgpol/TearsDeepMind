@@ -1,7 +1,7 @@
 package com.tearsdeepmind.service;
 
-import com.tearsdeepmind.domain.model.DailyAnalysisEntity;
-import com.tearsdeepmind.domain.model.QuantMemoryEntity;
+import com.tearsdeepmind.entity.DailyAnalysisEntity;
+import com.tearsdeepmind.entity.QuantMemoryEntity;
 import com.tearsdeepmind.repository.DailyAnalysisRepository;
 import com.tearsdeepmind.repository.QuantMemoryRepository;
 import org.springframework.stereotype.Service;

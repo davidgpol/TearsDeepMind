@@ -1,6 +1,6 @@
 package com.tearsdeepmind;
 
-import com.tearsdeepmind.domain.model.DailyAnalysisEntity;
+import com.tearsdeepmind.entity.DailyAnalysisEntity;
 import com.tearsdeepmind.repository.DailyAnalysisRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

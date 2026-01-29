@@ -3,7 +3,7 @@ package com.tearsdeepmind.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tearsdeepmind.config.GeminiModelsConfiguration;
 import com.tearsdeepmind.config.GeminiModelsConfiguration.GeminiModelConfig;
-import com.tearsdeepmind.domain.model.TemplateEntity;
+import com.tearsdeepmind.entity.TemplateEntity;
 import com.tearsdeepmind.dto.DailyAnalysisDto;
 import com.tearsdeepmind.repository.TemplateRepository;
 import org.junit.jupiter.api.BeforeEach;

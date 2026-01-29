@@ -3,7 +3,7 @@ package com.tearsdeepmind.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-import com.tearsdeepmind.domain.model.CrawlerJobEntity;
+import com.tearsdeepmind.entity.CrawlerJobEntity;
 import com.tearsdeepmind.model.ExtractionJob;
 import com.tearsdeepmind.model.JobStatus;
 import com.tearsdeepmind.repository.CrawlerJobRepository;

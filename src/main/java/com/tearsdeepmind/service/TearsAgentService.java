@@ -2,7 +2,7 @@ package com.tearsdeepmind.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.tearsdeepmind.domain.model.TemplateEntity;
+import com.tearsdeepmind.entity.TemplateEntity;
 import com.tearsdeepmind.dto.DailyAnalysisDto;
 import com.tearsdeepmind.dto.QuantMemoryDto;
 import com.tearsdeepmind.repository.TemplateRepository;

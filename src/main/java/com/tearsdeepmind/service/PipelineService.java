@@ -24,12 +24,30 @@ public class PipelineService {
     public Map<String, Object> runPipeline(LocalDate date) {
         Map<String, Object> result = new HashMap<>();
         try {
-            // 1. Data Acquisition
+            // 1. Data Acquisition (Check & Download)
             String marketText = crawlerService.getReportContent("DailyAnalysis", date);
             String quantText = crawlerService.getReportContent("QuantUpdates", date);
 
             if (marketText == null || quantText == null) {
-                throw new RuntimeException("Reports not found for date: " + date + ". Please run crawler first.");
+                // If reports are missing, trigger download synchronously
+                // We request 1 day of lookback, targeting the specific date implicitly by fetching recent posts
+                // Note: The crawler fetches the latest posts. If the target date is older than the latest batch, this might need adjustment.
+                // But for daily runs (today), fetching "1 day" or "2 days" of recent posts is sufficient.
+                String uuid = java.util.UUID.randomUUID().toString();
+                
+                // Trigger downloads in parallel and wait
+                java.util.concurrent.CompletableFuture<Void> marketFuture = crawlerService.extract("DailyAnalysis", 3, uuid + "-market");
+                java.util.concurrent.CompletableFuture<Void> quantFuture = crawlerService.extract("QuantUpdates", 3, uuid + "-quant");
+                
+                java.util.concurrent.CompletableFuture.allOf(marketFuture, quantFuture).join();
+
+                // Re-fetch content after download
+                marketText = crawlerService.getReportContent("DailyAnalysis", date);
+                quantText = crawlerService.getReportContent("QuantUpdates", date);
+            }
+
+            if (marketText == null || quantText == null) {
+                throw new RuntimeException("Reports not found for date: " + date + " even after crawler execution.");
             }
 
             // 2. Intelligence & Analysis
