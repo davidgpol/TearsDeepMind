@@ -535,6 +535,19 @@ public class CrawlerService {
         return result.size() > target ? result.subList(0, target) : result;
     }
 
+    public String getReportContent(String seccion, LocalDate date) throws IOException {
+        Path path = getOutputPath(seccion, date);
+        if (!Files.exists(path)) return null;
+        
+        try (var stream = Files.list(path)) {
+            Optional<Path> file = stream.filter(p -> p.toString().endsWith(".txt")).findFirst();
+            if (file.isPresent()) {
+                return Files.readString(file.get(), StandardCharsets.UTF_8);
+            }
+        }
+        return null;
+    }
+
     private Path getOutputPath(String seccion, LocalDate date) throws IOException {
         Path path = Paths.get(outputDir, date.format(DateTimeFormatter.ofPattern("yyyyMMdd")), seccion);
         if (!Files.exists(path)) {

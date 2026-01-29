@@ -2,13 +2,297 @@
 	"info": {
 		"_postman_id": "e4f8d9a1-b5c2-4d3e-8f9a-1b2c3d4e5f6a",
 		"name": "TearsDeepMind API",
-		"description": "Collection for the TearsDeepMind Crawler Microservice. Includes endpoints for extraction and checking of financial forum threads.",
+		"description": "Comprehensive collection for the TearsDeepMind Microservice. Includes Pipeline Orchestration, Industrial Crawler V2, and History/Memory persistence endpoints.",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
 	},
 	"item": [
 		{
-			"name": "Crawler Operations",
-			"description": "Core operations for the crawler service.",
+			"name": "Pipeline (Orchestrator)",
+			"description": "End-to-end automation triggers.",
+			"item": [
+				{
+					"name": "Run Full Pipeline (Daily)",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v2/pipeline/run/:date",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v2",
+								"pipeline",
+								"run",
+								":date"
+							],
+							"variable": [
+								{
+									"key": "date",
+									"value": "2026-01-28",
+									"description": "Date to process (YYYY-MM-DD)"
+								}
+							]
+						},
+						"description": "Triggers the full flow: 1. Checks/Downloads reports from Crawler. 2. Sends content to Gemini for analysis. 3. Persists JSONs to DB. 4. Generates Markdown report."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Crawler V2 (Industrial)",
+			"description": "New generation crawler endpoints with async jobs and SSE.",
+			"item": [
+				{
+					"name": "Start Extraction Job",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v2/crawler/jobs/:seccion/:dias",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v2",
+								"crawler",
+								"jobs",
+								":seccion",
+								":dias"
+							],
+							"variable": [
+								{
+									"key": "seccion",
+									"value": "DailyAnalysis",
+									"description": "DailyAnalysis or QuantUpdates"
+								},
+								{
+									"key": "dias",
+									"value": "1",
+									"description": "Number of days to look back"
+								}
+							]
+						},
+						"description": "Starts an asynchronous background job for extraction."
+					},
+					"response": []
+				},
+				{
+					"name": "Stream Job Events (SSE)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "text/event-stream",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v2/crawler/stream/:jobId",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v2",
+								"crawler",
+								"stream",
+								":jobId"
+							],
+							"variable": [
+								{
+									"key": "jobId",
+									"value": "",
+									"description": "UUID of the job returned by Start Extraction"
+								}
+							]
+						},
+						"description": "Connect to this endpoint to receive real-time updates for a running job."
+					},
+					"response": []
+				},
+				{
+					"name": "Check Report Existence",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v2/crawler/check/:seccion/:date",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v2",
+								"crawler",
+								"check",
+								":seccion",
+								":date"
+							],
+							"variable": [
+								{
+									"key": "seccion",
+									"value": "DailyAnalysis"
+								},
+								{
+									"key": "date",
+									"value": "2026-01-28"
+								}
+							]
+						},
+						"description": "Deterministically checks if a report exists for a specific date."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "History & Memory",
+			"description": "Persistence layer for analysis results.",
+			"item": [
+				{
+					"name": "Daily Analysis",
+					"item": [
+						{
+							"name": "Get By Date",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/api/history/daily-analysis/:date",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"api",
+										"history",
+										"daily-analysis",
+										":date"
+									],
+									"variable": [
+										{
+											"key": "date",
+											"value": "2026-01-28"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Save (Manual)",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"date\": \"2026-01-28\",\n  \"data\": {\n    \"regime\": \"bullish\",\n    \"content\": \"Sample content\"\n  }\n}"
+								},
+								"url": {
+									"raw": "{{baseUrl}}/api/history/daily-analysis/:date",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"api",
+										"history",
+										"daily-analysis",
+										":date"
+									],
+									"variable": [
+										{
+											"key": "date",
+											"value": "2026-01-28"
+										}
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Quant Memory",
+					"item": [
+						{
+							"name": "Get By Date",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/api/history/quant-memory/:date",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"api",
+										"history",
+										"quant-memory",
+										":date"
+									],
+									"variable": [
+										{
+											"key": "date",
+											"value": "2026-01-28"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Save (Manual)",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"date\": \"2026-01-28\",\n  \"data\": {\n    \"levels\": [7000, 6900]\n  }\n}"
+								},
+								"url": {
+									"raw": "{{baseUrl}}/api/history/quant-memory/:date",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"api",
+										"history",
+										"quant-memory",
+										":date"
+									],
+									"variable": [
+										{
+											"key": "date",
+											"value": "2026-01-28"
+										}
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Legacy (V1)",
+			"description": "Deprecated blocking endpoints.",
 			"item": [
 				{
 					"name": "Extract - DailyAnalysis (1 Day)",
@@ -28,8 +312,7 @@
 								"DailyAnalysis",
 								"1"
 							]
-						},
-						"description": "Triggers the extraction of threads from the 'DailyAnalysis' section looking back 1 day."
+						}
 					},
 					"response": []
 				},
@@ -51,30 +334,7 @@
 								"QuantUpdates",
 								"1"
 							]
-						},
-						"description": "Triggers the extraction of threads from the 'QuantUpdates' section looking back 1 day."
-					},
-					"response": []
-				},
-				{
-					"name": "Check for New Threads",
-					"request": {
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{baseUrl}}/api/v1/crawler/check/DailyAnalysis",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"v1",
-								"crawler",
-								"check",
-								"DailyAnalysis"
-							]
-						},
-						"description": "Scans the 'DailyAnalysis' section and returns a list of thread titles that have NOT been downloaded locally for the current day."
+						}
 					},
 					"response": []
 				}
