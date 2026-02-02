@@ -45,6 +45,11 @@ services:
       CRAWLER_PASSWORD: ${CRAWLER_PASSWORD:-%Mo&5ag8c*42VpfEkAie}
       SELENIUM_REMOTE_URL: http://tears-selenium:4444/wd/hub
       GEMINI_API_KEY: ${GEMINI_API_KEY}
+      SMTP_HOST: ${SMTP_HOST:-smtp.gmail.com}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASSWORD: ${SMTP_PASSWORD}
+      EMAIL_TO: ${EMAIL_TO}
     volumes:
       - ../../Volumes/TearsMind:/app/TearsMind:Z
       - ../AgentsRepository:/app/AgentsRepository:Z
