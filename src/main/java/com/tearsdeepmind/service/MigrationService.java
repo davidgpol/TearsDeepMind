@@ -84,10 +84,10 @@ public class MigrationService {
         if (isDaily) {
             // Check if exists to avoid overwrite if we want (or just overwrite)
             // For now, overwrite/update
-            historyService.saveDailyAnalysis(date, data);
-            logger.debug("Saved DailyAnalysis for {}", date);
-        } else {
-            historyService.saveQuantMemory(date, data);
+//            historyService.saveDailyAnalysis(date, data);
+//            logger.debug("Saved DailyAnalysis for {}", date);
+//        } else {
+//            historyService.saveQuantMemory(date, data);
             logger.debug("Saved QuantMemory for {}", date);
         }
     }

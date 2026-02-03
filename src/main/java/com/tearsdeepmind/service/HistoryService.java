@@ -1,5 +1,7 @@
 package com.tearsdeepmind.service;
 
+import com.tearsdeepmind.domain.model.MarketMemoryRecord;
+import com.tearsdeepmind.domain.model.QuantMemoryRecord;
 import com.tearsdeepmind.entity.DailyAnalysisEntity;
 import com.tearsdeepmind.entity.QuantMemoryEntity;
 import com.tearsdeepmind.repository.DailyAnalysisRepository;
@@ -7,8 +9,8 @@ import com.tearsdeepmind.repository.QuantMemoryRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
 @Service
@@ -22,41 +24,43 @@ public class HistoryService {
         this.quantMemoryRepository = quantMemoryRepository;
     }
 
-    // Daily Analysis Operations
+    // Daily Analysis
     public List<DailyAnalysisEntity> getAllDailyAnalysis() {
         return dailyAnalysisRepository.findAll();
     }
 
-    public Optional<DailyAnalysisEntity> getDailyAnalysis(String date) {
+    public Optional<DailyAnalysisEntity> getDailyAnalysis(LocalDate date) {
         return dailyAnalysisRepository.findById(date);
     }
 
     @Transactional
-    public DailyAnalysisEntity saveDailyAnalysis(String date, Map<String, Object> data) {
-        return dailyAnalysisRepository.save(new DailyAnalysisEntity(date, data));
+    public DailyAnalysisEntity saveDailyAnalysis(LocalDate date, MarketMemoryRecord data) {
+        DailyAnalysisEntity entity = new DailyAnalysisEntity(date, data, null, "v1", "manual");
+        return dailyAnalysisRepository.save(entity);
     }
 
     @Transactional
-    public void deleteDailyAnalysis(String date) {
+    public void deleteDailyAnalysis(LocalDate date) {
         dailyAnalysisRepository.deleteById(date);
     }
 
-    // Quant Memory Operations
+    // Quant Memory
     public List<QuantMemoryEntity> getAllQuantMemory() {
         return quantMemoryRepository.findAll();
     }
 
-    public Optional<QuantMemoryEntity> getQuantMemory(String date) {
+    public Optional<QuantMemoryEntity> getQuantMemory(LocalDate date) {
         return quantMemoryRepository.findById(date);
     }
 
     @Transactional
-    public QuantMemoryEntity saveQuantMemory(String date, Map<String, Object> data) {
-        return quantMemoryRepository.save(new QuantMemoryEntity(date, data));
+    public QuantMemoryEntity saveQuantMemory(LocalDate date, QuantMemoryRecord data) {
+        QuantMemoryEntity entity = new QuantMemoryEntity(date, data, null, "v1", "manual");
+        return quantMemoryRepository.save(entity);
     }
 
     @Transactional
-    public void deleteQuantMemory(String date) {
+    public void deleteQuantMemory(LocalDate date) {
         quantMemoryRepository.deleteById(date);
     }
 }

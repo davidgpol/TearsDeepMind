@@ -1,5 +1,7 @@
 package com.tearsdeepmind.controller;
 
+import com.tearsdeepmind.domain.model.MarketMemoryRecord;
+import com.tearsdeepmind.domain.model.QuantMemoryRecord;
 import com.tearsdeepmind.entity.DailyAnalysisEntity;
 import com.tearsdeepmind.entity.QuantMemoryEntity;
 import com.tearsdeepmind.service.HistoryService;
@@ -8,8 +10,8 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.List;
-import java.util.Map;
 
 @RestController
 @RequestMapping("/api/history")
@@ -22,59 +24,57 @@ public class HistoryController {
         this.historyService = historyService;
     }
 
-    // Daily Analysis Endpoints
-    @Operation(summary = "Get all Daily Analyses", description = "Retrieves the complete history of daily market context.")
+    @Operation(summary = "Get all Daily Analyses")
     @GetMapping("/daily-analysis")
     public List<DailyAnalysisEntity> getAllDailyAnalysis() {
         return historyService.getAllDailyAnalysis();
     }
 
-    @Operation(summary = "Get Daily Analysis by Date", description = "Retrieves specific daily analysis by YYYYMMDD date.")
+    @Operation(summary = "Get Daily Analysis by Date")
     @GetMapping("/daily-analysis/{date}")
     public ResponseEntity<DailyAnalysisEntity> getDailyAnalysis(@PathVariable String date) {
-        return historyService.getDailyAnalysis(date)
+        return historyService.getDailyAnalysis(LocalDate.parse(date))
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    @Operation(summary = "Save Daily Analysis", description = "Creates or updates the daily analysis JSON for a specific date.")
+    @Operation(summary = "Save Daily Analysis")
     @PostMapping("/daily-analysis/{date}")
-    public DailyAnalysisEntity saveDailyAnalysis(@PathVariable String date, @RequestBody Map<String, Object> data) {
-        return historyService.saveDailyAnalysis(date, data);
+    public DailyAnalysisEntity saveDailyAnalysis(@PathVariable String date, @RequestBody MarketMemoryRecord data) {
+        return historyService.saveDailyAnalysis(LocalDate.parse(date), data);
     }
 
-    @Operation(summary = "Delete Daily Analysis", description = "Removes a daily analysis record.")
+    @Operation(summary = "Delete Daily Analysis")
     @DeleteMapping("/daily-analysis/{date}")
     public ResponseEntity<Void> deleteDailyAnalysis(@PathVariable String date) {
-        historyService.deleteDailyAnalysis(date);
+        historyService.deleteDailyAnalysis(LocalDate.parse(date));
         return ResponseEntity.noContent().build();
     }
 
-    // Quant Memory Endpoints
-    @Operation(summary = "Get all Quant Memories", description = "Retrieves full history of quantitative signals.")
+    @Operation(summary = "Get all Quant Memories")
     @GetMapping("/quant-memory")
     public List<QuantMemoryEntity> getAllQuantMemory() {
         return historyService.getAllQuantMemory();
     }
 
-    @Operation(summary = "Get Quant Memory by Date", description = "Retrieves specific quant signals by YYYYMMDD date.")
+    @Operation(summary = "Get Quant Memory by Date")
     @GetMapping("/quant-memory/{date}")
     public ResponseEntity<QuantMemoryEntity> getQuantMemory(@PathVariable String date) {
-        return historyService.getQuantMemory(date)
+        return historyService.getQuantMemory(LocalDate.parse(date))
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    @Operation(summary = "Save Quant Memory", description = "Creates or updates the quant memory JSON for a specific date.")
+    @Operation(summary = "Save Quant Memory")
     @PostMapping("/quant-memory/{date}")
-    public QuantMemoryEntity saveQuantMemory(@PathVariable String date, @RequestBody Map<String, Object> data) {
-        return historyService.saveQuantMemory(date, data);
+    public QuantMemoryEntity saveQuantMemory(@PathVariable String date, @RequestBody QuantMemoryRecord data) {
+        return historyService.saveQuantMemory(LocalDate.parse(date), data);
     }
 
-    @Operation(summary = "Delete Quant Memory", description = "Removes a quant memory record.")
+    @Operation(summary = "Delete Quant Memory")
     @DeleteMapping("/quant-memory/{date}")
     public ResponseEntity<Void> deleteQuantMemory(@PathVariable String date) {
-        historyService.deleteQuantMemory(date);
+        historyService.deleteQuantMemory(LocalDate.parse(date));
         return ResponseEntity.noContent().build();
     }
 }

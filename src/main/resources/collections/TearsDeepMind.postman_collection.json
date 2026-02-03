@@ -38,6 +38,27 @@
 						"description": "Triggers the full flow: 1. Checks/Downloads reports from Crawler. 2. Sends content to Gemini for analysis. 3. Persists JSONs to DB. 4. Generates Markdown report."
 					},
 					"response": []
+				},
+				{
+					"name": "Run Historical Backfill",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v2/pipeline/backfill",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v2",
+								"pipeline",
+								"backfill"
+							]
+						},
+						"description": "Scans filesystem volume and populates DB with missing raw documents and intelligence reports."
+					},
+					"response": []
 				}
 			]
 		},
@@ -151,142 +172,136 @@
 			]
 		},
 		{
-			"name": "History & Memory",
-			"description": "Persistence layer for analysis results.",
+			"name": "Ingestion (Raw Data)",
+			"description": "Direct access to original forum texts and manual uploads.",
 			"item": [
 				{
-					"name": "Daily Analysis",
-					"item": [
-						{
-							"name": "Get By Date",
-							"request": {
-								"method": "GET",
-								"header": [],
-								"url": {
-									"raw": "{{baseUrl}}/api/history/daily-analysis/:date",
-									"host": [
-										"{{baseUrl}}"
-									],
-									"path": [
-										"api",
-										"history",
-										"daily-analysis",
-										":date"
-									],
-									"variable": [
-										{
-											"key": "date",
-											"value": "2026-01-28"
-										}
-									]
-								}
-							},
-							"response": []
-						},
-						{
-							"name": "Save (Manual)",
-							"request": {
-								"method": "POST",
-								"header": [
-									{
-										"key": "Content-Type",
-										"value": "application/json",
-										"type": "text"
-									}
-								],
-								"body": {
-									"mode": "raw",
-									"raw": "{\n  \"date\": \"2026-01-28\",\n  \"data\": {\n    \"regime\": \"bullish\",\n    \"content\": \"Sample content\"\n  }\n}"
+					"name": "Get Raw Content",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v2/ingestion/raw/:date/:type",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v2",
+								"ingestion",
+								"raw",
+								":date",
+								":type"
+							],
+							"variable": [
+								{
+									"key": "date",
+									"value": "2026-01-28"
 								},
-								"url": {
-									"raw": "{{baseUrl}}/api/history/daily-analysis/:date",
-									"host": [
-										"{{baseUrl}}"
-									],
-									"path": [
-										"api",
-										"history",
-										"daily-analysis",
-										":date"
-									],
-									"variable": [
-										{
-											"key": "date",
-											"value": "2026-01-28"
-										}
-									]
+								{
+									"key": "type",
+									"value": "QUANT",
+									"description": "QUANT or MACRO"
 								}
-							},
-							"response": []
+							]
 						}
-					]
+					},
+					"response": []
 				},
 				{
-					"name": "Quant Memory",
-					"item": [
-						{
-							"name": "Get By Date",
-							"request": {
-								"method": "GET",
-								"header": [],
-								"url": {
-									"raw": "{{baseUrl}}/api/history/quant-memory/:date",
-									"host": [
-										"{{baseUrl}}"
-									],
-									"path": [
-										"api",
-										"history",
-										"quant-memory",
-										":date"
-									],
-									"variable": [
-										{
-											"key": "date",
-											"value": "2026-01-28"
-										}
-									]
-								}
-							},
-							"response": []
+					"name": "Manual Upload Raw",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "Title: Manual Fix\nDate: 2026-02-02\nContent: Support at 6900..."
 						},
-						{
-							"name": "Save (Manual)",
-							"request": {
-								"method": "POST",
-								"header": [
-									{
-										"key": "Content-Type",
-										"value": "application/json",
-										"type": "text"
-									}
-								],
-								"body": {
-									"mode": "raw",
-									"raw": "{\n  \"date\": \"2026-01-28\",\n  \"data\": {\n    \"levels\": [7000, 6900]\n  }\n}"
+						"url": {
+							"raw": "{{baseUrl}}/api/v2/ingestion/upload?date=2026-02-02&type=QUANT",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v2",
+								"ingestion",
+								"upload"
+							],
+							"query": [
+								{
+									"key": "date",
+									"value": "2026-02-02"
 								},
-								"url": {
-									"raw": "{{baseUrl}}/api/history/quant-memory/:date",
-									"host": [
-										"{{baseUrl}}"
-									],
-									"path": [
-										"api",
-										"history",
-										"quant-memory",
-										":date"
-									],
-									"variable": [
-										{
-											"key": "date",
-											"value": "2026-01-28"
-										}
-									]
+								{
+									"key": "type",
+									"value": "QUANT"
 								}
-							},
-							"response": []
+							]
 						}
-					]
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Analysis & Lifecycle",
+			"description": "Monitoring and reprocessing of intelligence data.",
+			"item": [
+				{
+					"name": "Get Day Health Status",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v2/analysis/status/:date",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v2",
+								"analysis",
+								"status",
+								":date"
+							],
+							"variable": [
+								{
+									"key": "date",
+									"value": "2026-01-28"
+								}
+							]
+						},
+						"description": "Diagnostic: Raw OK? Quant OK? Macro OK? Report OK?"
+					},
+					"response": []
+				},
+				{
+					"name": "Force Regenerate Day",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v2/analysis/regenerate/:date",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v2",
+								"analysis",
+								"regenerate",
+								":date"
+							],
+							"variable": [
+								{
+									"key": "date",
+									"value": "2026-01-28"
+								}
+							]
+						}
+					},
+					"response": []
 				}
 			]
 		},

@@ -2,10 +2,8 @@ package com.tearsdeepmind.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.tearsdeepmind.entity.TemplateEntity;
-import com.tearsdeepmind.dto.DailyAnalysisDto;
-import com.tearsdeepmind.dto.QuantMemoryDto;
-import com.tearsdeepmind.repository.TemplateRepository;
+import com.tearsdeepmind.domain.model.MarketMemoryRecord;
+import com.tearsdeepmind.domain.model.QuantMemoryRecord;
 import com.tearsdeepmind.config.GeminiModelsConfiguration;
 import com.tearsdeepmind.config.GeminiModelsConfiguration.GeminiModelConfig;
 import org.springframework.beans.factory.annotation.Value;
@@ -18,9 +16,7 @@ import org.springframework.util.StreamUtils;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -35,71 +31,62 @@ public class TearsAgentService {
     private static final Logger logger = LogManager.getLogger(TearsAgentService.class);
 
     private final RestClient restClient;
-    private final TemplateRepository templateRepository;
     private final ObjectMapper objectMapper;
     private final GeminiModelsConfiguration geminiModelsConfig;
 
-    @Value("classpath:/prompts/tears-agent-system.st")
-    private Resource systemPromptResource;
+    @Value("classpath:/prompts/quant-extractor-v1.st")
+    private Resource quantPromptResource;
 
-    @Value("classpath:/prompts/json-mapper.st")
-    private Resource jsonMapperPromptResource;
+    @Value("classpath:/prompts/macro-extractor-v1.st")
+    private Resource macroPromptResource;
 
-    @Value("${crawler.output.dir:/app/TearsMind}")
-    private String outputDir;
+    @Value("classpath:/prompts/report-generator-v1.st")
+    private Resource reportPromptResource;
 
-    public TearsAgentService(RestClient.Builder restClientBuilder, TemplateRepository templateRepository, ObjectMapper objectMapper, GeminiModelsConfiguration geminiModelsConfig) {
+    public TearsAgentService(RestClient.Builder restClientBuilder, ObjectMapper objectMapper, GeminiModelsConfiguration geminiModelsConfig) {
         this.restClient = restClientBuilder.build();
-        this.templateRepository = templateRepository;
         this.objectMapper = objectMapper;
         this.geminiModelsConfig = geminiModelsConfig;
     }
 
-    public AnalysisResult generateAnalysis(String date, String rawMarketText, String rawQuantText) {
+    public QuantMemoryRecord extractQuantIntelligence(String rawText) {
         try {
-            // 1. Generate Report (Markdown)
-            String systemPrompt = StreamUtils.copyToString(systemPromptResource.getInputStream(), StandardCharsets.UTF_8);
-            String combinedInput = "--- MARKET ANALYSIS ---\n" + rawMarketText + "\n\n--- QUANTLEVELS ---\n" + rawQuantText;
-            String fullPrompt = systemPrompt.replace("{input_data}", combinedInput);
-
-            String markdownReport = callGemini(fullPrompt, "markdown_report_gen");
-
-            // 2. Save Markdown
-            Path reportPath = saveMarkdownReport(date, markdownReport);
-
-            // 3. Generate Structured Data (JSONs)
-            DailyAnalysisDto dailyAnalysis = generateStructuredData(markdownReport, "market_memory", DailyAnalysisDto.class);
-            QuantMemoryDto quantMemory = generateStructuredData(markdownReport, "quant_memory", QuantMemoryDto.class);
-
-            return new AnalysisResult(reportPath, dailyAnalysis, quantMemory);
+            String promptTemplate = StreamUtils.copyToString(quantPromptResource.getInputStream(), StandardCharsets.UTF_8);
+            String fullPrompt = promptTemplate.replace("{raw_quant_data}", rawText);
+            String jsonResponse = callGemini(fullPrompt, "quant_extraction");
+            return objectMapper.readValue(jsonResponse, QuantMemoryRecord.class);
         } catch (IOException e) {
-            throw new RuntimeException("Error processing analysis", e);
+            throw new RuntimeException("Error extracting quant intelligence", e);
         }
     }
 
-    private <T> T generateStructuredData(String analysisText, String templateName, Class<T> clazz) throws IOException {
-        TemplateEntity templateEntity = templateRepository.findById(templateName)
-                .orElseThrow(() -> new RuntimeException("Template not found: " + templateName));
-
-        String mapperPromptTemplate = StreamUtils.copyToString(jsonMapperPromptResource.getInputStream(), StandardCharsets.UTF_8);
-        String prompt = mapperPromptTemplate
-                .replace("{analysis_text}", analysisText)
-                .replace("{json_template}", templateEntity.getContent());
-
-        String jsonResponse = callGemini(prompt, "json_mapper_gen");
-        jsonResponse = jsonResponse.replaceAll("```json", "").replaceAll("```", "").trim();
-        
-        // --- Solución Punto 1.1: Mapeo Manual Robusto ---
-        Map<String, Object> rawData = objectMapper.readValue(jsonResponse, Map.class);
-        String reportDate = (String) rawData.getOrDefault("date", "unknown");
-
-        if (clazz.equals(DailyAnalysisDto.class)) {
-            return (T) new DailyAnalysisDto(reportDate, rawData);
-        } else if (clazz.equals(QuantMemoryDto.class)) {
-            return (T) new QuantMemoryDto(reportDate, rawData);
+    public MarketMemoryRecord extractMacroIntelligence(String rawText) {
+        try {
+            String promptTemplate = StreamUtils.copyToString(macroPromptResource.getInputStream(), StandardCharsets.UTF_8);
+            String fullPrompt = promptTemplate.replace("{raw_macro_data}", rawText);
+            String jsonResponse = callGemini(fullPrompt, "macro_extraction");
+            return objectMapper.readValue(jsonResponse, MarketMemoryRecord.class);
+        } catch (IOException e) {
+            throw new RuntimeException("Error extracting macro intelligence", e);
         }
+    }
 
-        return objectMapper.readValue(jsonResponse, clazz);
+    public String generateFinalReport(LocalDate date, QuantMemoryRecord quantData, MarketMemoryRecord marketData) {
+        try {
+            String promptTemplate = StreamUtils.copyToString(reportPromptResource.getInputStream(), StandardCharsets.UTF_8);
+            
+            String quantJson = (quantData != null) ? objectMapper.writeValueAsString(quantData) : "{\"status\": \"DATA_NOT_AVAILABLE\"}";
+            String marketJson = (marketData != null) ? objectMapper.writeValueAsString(marketData) : "{\"status\": \"DATA_NOT_AVAILABLE\"}";
+
+            String fullPrompt = promptTemplate
+                    .replace("{date}", date.toString())
+                    .replace("{quant_json}", quantJson)
+                    .replace("{market_json}", marketJson);
+
+            return callGemini(fullPrompt, "report_generation");
+        } catch (IOException e) {
+            throw new RuntimeException("Error generating final report", e);
+        }
     }
 
     protected String callGemini(String promptText, String purpose) {
@@ -110,14 +97,13 @@ public class TearsAgentService {
             )
         );
 
-        // --- Solución Punto 1.2: Fallback de Modelos Corregido y Logging ---
         for (GeminiModelConfig modelConfig : geminiModelsConfig.getModels()) {
             int maxRetries = 3;
             long delayMillis = 1000;
 
             for (int attempt = 1; attempt <= maxRetries; attempt++) {
                 try {
-                    logger.info("[{}] Intentando llamada a Gemini con modelo [{}] para [{}]... (Intento {}/{})", 
+                    logger.info("[{}] Attempting Gemini call with model [{}] for [{}]... (Attempt {}/{})", 
                         uuid, modelConfig.name(), purpose, attempt, maxRetries);
                     
                     String uri = modelConfig.url() + "?key=" + modelConfig.key();
@@ -131,49 +117,27 @@ public class TearsAgentService {
                     JsonNode root = objectMapper.readTree(response);
                     String result = root.path("candidates").get(0).path("content").path("parts").get(0).path("text").asText();
                     
-                    logger.info("[{}] Éxito obtenido usando el modelo: [{}].", uuid, modelConfig.name());
+                    // Cleanup potential markdown blocks
+                    result = result.replaceAll("```json", "").replaceAll("```", "").trim();
+                    
+                    logger.info("[{}] Success using model: [{}].", uuid, modelConfig.name());
                     return result;
 
                 } catch (Exception e) {
                     if (e instanceof org.springframework.web.client.HttpClientErrorException.TooManyRequests) {
-                        logger.warn("[{}] Modelo [{}] saturado (Error 429). Reintento [{}/{}] en {}ms...", 
+                        logger.warn("[{}] Model [{}] saturated (Error 429). Retry [{}/{}] in {}ms...", 
                             uuid, modelConfig.name(), attempt, maxRetries, delayMillis);
                         if (attempt < maxRetries) {
                             try { Thread.sleep(delayMillis); } catch (InterruptedException ie) { Thread.currentThread().interrupt(); }
                             delayMillis *= 2;
-                        } else {
-                            logger.warn("[{}] Modelo [{}] ha agotado todos los reintentos para [{}].", uuid, modelConfig.name(), purpose);
-                            // Outer loop continues to next model
                         }
                     } else {
-                        logger.error("[{}] El modelo [{}] falló con error: {}. Tipo: {}", 
-                            uuid, modelConfig.name(), e.getMessage(), e.getClass().getSimpleName());
-                        // Break inner loop to try next model
+                        logger.error("[{}] Model [{}] failed with error: {}.", uuid, modelConfig.name(), e.getMessage());
                         break; 
                     }
                 }
             }
-            logger.info("[{}] --- ACTIVANDO FALLBACK: Saltando al siguiente modelo en la lista ---", uuid);
         }
-        
-        logger.fatal("[{}] Se han agotado todos los modelos configurados sin éxito para [{}].", uuid, purpose);
-        throw new RuntimeException("Fallo total del pipeline: Todos los modelos de Gemini fallaron o agotaron su cuota.");
+        throw new RuntimeException("All Gemini models failed for " + purpose);
     }
-
-    private Path saveMarkdownReport(String date, String content) {
-        try {
-            String dateFolder = date.replace("-", "");
-            Path folder = Paths.get(outputDir, dateFolder);
-            if (!Files.exists(folder)) {
-                Files.createDirectories(folder);
-            }
-            Path file = folder.resolve("Trading_Report_" + dateFolder + ".md");
-            Files.write(file, content.getBytes(StandardCharsets.UTF_8));
-            return file;
-        } catch (IOException e) {
-            throw new RuntimeException("Failed to save markdown report", e);
-        }
-    }
-
-    public record AnalysisResult(Path reportPath, DailyAnalysisDto dailyAnalysis, QuantMemoryDto quantMemory) {}
 }

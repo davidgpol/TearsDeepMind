@@ -65,6 +65,9 @@ public class CrawlerService {
     @Autowired
     private MonitoringService monitoringService;
 
+    @Autowired
+    private IngestionService ingestionService;
+
     private ExecutorService browserPool;
     private final java.util.concurrent.Semaphore semaphore = new java.util.concurrent.Semaphore(5);
 
@@ -303,8 +306,13 @@ public class CrawlerService {
                 }
 
                 Path filePath = outputPath.resolve(sanitizeFilename(title) + ".txt");
-                Files.write(filePath, ("Title: " + title + "\nDate: " + dateStr + "\nURL: " + url + "\n\n" + content).getBytes(StandardCharsets.UTF_8));
+                String fullContent = "Title: " + title + "\nDate: " + dateStr + "\nURL: " + url + "\n\n" + content;
+                Files.write(filePath, fullContent.getBytes(StandardCharsets.UTF_8));
                 
+                // --- Save to Database (DQLM Evolution) ---
+                String docType = job.getSection().equals("DailyAnalysis") ? "MACRO" : "QUANT";
+                ingestionService.saveRawDocument(threadDate, docType, fullContent);
+
                 job.markUrlAsCompleted(url);
                 jobStore.saveJob(job);
                 monitoringService.publish(new com.tearsdeepmind.model.CrawlerEvent(job.getJobId(), "ITEM_COMPLETED", title, job.getCompletedCount(), job.getTotalThreads(), "Downloaded successfully."));
@@ -461,7 +469,13 @@ public class CrawlerService {
                 }
 
                 Path filePath = outputPath.resolve(sanitizeFilename(title) + ".txt");
-                Files.write(filePath, ("Title: " + title + "\nDate: " + dateStr + "\nURL: " + url + "\n\n" + content).getBytes(StandardCharsets.UTF_8));
+                String fullContent = "Title: " + title + "\nDate: " + dateStr + "\nURL: " + url + "\n\n" + content;
+                Files.write(filePath, fullContent.getBytes(StandardCharsets.UTF_8));
+                
+                // --- Save to Database (DQLM Evolution) ---
+                String docType = seccion.equals("DailyAnalysis") ? "MACRO" : "QUANT";
+                ingestionService.saveRawDocument(threadDate, docType, fullContent);
+
                 logger.info("[{}] Sync processed: {} (Date: {})", uuid, title, threadDate);
 
             } catch (Exception e) {
