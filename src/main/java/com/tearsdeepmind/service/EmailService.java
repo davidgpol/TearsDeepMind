@@ -44,7 +44,7 @@ public class EmailService {
             }
 
             MimeMessage message = mailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(message, false, "UTF-8");
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8"); // true = multipart
 
             helper.setTo(activeRecipients.toArray(new String[0]));
             helper.setFrom(from);
@@ -53,7 +53,13 @@ public class EmailService {
             String headline = (marketData != null) ? marketData.daily_thesis().headline() : "Daily Report";
             
             helper.setSubject(String.format("[%s] %s | %s", bias.toUpperCase(), date, headline));
-            helper.setText(markdownContent); // Sending as plain text markdown for now
+            
+            // Body text
+            helper.setText("Adjunto encontrarás el informe detallado para la fecha " + date + ".\n\nBias: " + bias + "\nHeadline: " + headline);
+            
+            // Attachment
+            org.springframework.core.io.ByteArrayResource reportResource = new org.springframework.core.io.ByteArrayResource(markdownContent.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            helper.addAttachment("TearsReport_" + date + ".md", reportResource);
 
             mailSender.send(message);
             logger.info("Report sent to {} subscribers.", activeRecipients.size());

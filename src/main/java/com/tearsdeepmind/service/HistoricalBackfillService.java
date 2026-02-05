@@ -3,6 +3,7 @@ package com.tearsdeepmind.service;
 import com.tearsdeepmind.repository.RawDocumentRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -20,7 +21,9 @@ public class HistoricalBackfillService {
     
     private final IngestionService ingestionService;
     private final PipelineService pipelineService;
-    private final String volumePath = "../../Volumes/TearsMind";
+
+    @Value("${crawler.output.dir:/app/TearsMind}")
+    private String volumePath;
 
     public HistoricalBackfillService(IngestionService ingestionService, PipelineService pipelineService) {
         this.ingestionService = ingestionService;
@@ -46,18 +49,18 @@ public class HistoricalBackfillService {
         LocalDate date = LocalDate.parse(folderName, DateTimeFormatter.ofPattern("yyyyMMdd"));
         logger.info("--- Processing Date: {} ---", date);
 
-        // 1. Ingest Macro
-        ingestType(dateFolder.resolve("DailyAnalysis"), date, "MACRO");
-        
-        // 2. Ingest Quant
-        ingestType(dateFolder.resolve("QuantUpdates"), date, "QUANT");
-
-        // 3. Process Intelligence & Report (Full Reprocess)
         try {
+            // 1. Ingest Macro
+            ingestType(dateFolder.resolve("DailyAnalysis"), date, "MACRO");
+            
+            // 2. Ingest Quant
+            ingestType(dateFolder.resolve("QuantUpdates"), date, "QUANT");
+
+            // 3. Process Intelligence & Report (Full Reprocess)
             logger.info("Triggering analysis reprocessing for {}", date);
             pipelineService.runPipeline(date);
         } catch (Exception e) {
-            logger.error("Reprocessing failed for " + date, e);
+            logger.error("CRITICAL BACKFILL ERROR for date: " + date + ". Skipping to next date.", e);
         }
     }
 

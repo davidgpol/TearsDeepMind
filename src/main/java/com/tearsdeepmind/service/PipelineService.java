@@ -110,9 +110,12 @@ public class PipelineService {
             logger.info("Raw documents missing for {}. Triggering crawler...", date);
             String uuid = java.util.UUID.randomUUID().toString().substring(0,8);
             
-            // Sync extraction for pipeline
-            crawlerService.extract("DailyAnalysis", 1, uuid + "-m");
-            crawlerService.extract("QuantUpdates", 1, uuid + "-q");
+            // Sync extraction for pipeline (Waiting for Completion)
+            java.util.concurrent.CompletableFuture<Void> macroTask = crawlerService.extract("DailyAnalysis", 1, uuid + "-m");
+            java.util.concurrent.CompletableFuture<Void> quantTask = crawlerService.extract("QuantUpdates", 1, uuid + "-q");
+            
+            java.util.concurrent.CompletableFuture.allOf(macroTask, quantTask).join();
+            logger.info("Crawler tasks finished for {}. Resuming pipeline.", date);
         }
     }
 
