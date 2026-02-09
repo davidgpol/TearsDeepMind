@@ -452,6 +452,89 @@
 			]
 		},
 		{
+			"name": "Market Data & Audit",
+			"description": "Market reality syncing and performance auditing.",
+			"item": [
+				{
+					"name": "Sync Yahoo Finance",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/market-data/sync?range=5d",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"market-data",
+								"sync"
+							],
+							"query": [
+								{
+									"key": "range",
+									"value": "5d"
+								}
+							]
+						},
+						"description": "Downloads OHLCV data from Yahoo Finance for SPX and VIX."
+					},
+					"response": []
+				},
+				{
+					"name": "Run Manual Audit",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/market-data/audit/:date",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"market-data",
+								"audit",
+								":date"
+							],
+							"variable": [
+								{
+									"key": "date",
+									"value": "2026-02-06"
+								}
+							]
+						},
+						"description": "Runs the 'Judge' algorithm for a specific date."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Latest Technicals",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/market-data/indicators/latest",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"market-data",
+								"indicators",
+								"latest"
+							]
+						},
+						"description": "Retrieves the computed technical indicators for the latest date."
+					},
+					"response": []
+				}
+			]
+		},
+		{
 			"name": "Legacy (V1)",
 			"description": "Deprecated blocking endpoints.",
 			"item": [

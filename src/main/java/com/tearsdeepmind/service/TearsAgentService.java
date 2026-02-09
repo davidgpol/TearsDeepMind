@@ -71,7 +71,8 @@ public class TearsAgentService {
         }
     }
 
-    public String generateFinalReport(LocalDate date, QuantMemoryRecord quantData, MarketMemoryRecord marketData) {
+    public String generateFinalReport(LocalDate date, QuantMemoryRecord quantData, MarketMemoryRecord marketData, 
+                                     String marketReality, String auditVerdict) {
         try {
             String promptTemplate = StreamUtils.copyToString(reportPromptResource.getInputStream(), StandardCharsets.UTF_8);
             
@@ -81,7 +82,9 @@ public class TearsAgentService {
             String fullPrompt = promptTemplate
                     .replace("{date}", date.toString())
                     .replace("{quant_json}", quantJson)
-                    .replace("{market_json}", marketJson);
+                    .replace("{market_json}", marketJson)
+                    .replace("{market_reality}", marketReality != null ? marketReality : "No market data available.")
+                    .replace("{audit_verdict}", auditVerdict != null ? auditVerdict : "No previous audit data.");
 
             return callGemini(fullPrompt, "report_generation");
         } catch (IOException e) {

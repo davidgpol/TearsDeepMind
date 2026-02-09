@@ -1,70 +1,54 @@
-# Estudio Global: Proyecto TearsDeepMind (Actualizado)
+# Estudio Arquitectónico Integral: TearsDeepMind v2.1 (V5 Data Lineage)
 
 ## 1. Visión General del Sistema
-**TearsDeepMind** es una plataforma autónoma de inteligencia financiera diseñada para operar el índice **SP500**. Su núcleo es un orquestador híbrido que combina **Ingeniería de Datos tradicional** (crawling) con **Inteligencia Artificial Generativa** (Gemini LLM) para simular el proceso de toma de decisiones de un trader institucional.
-
-El sistema transforma **datos no estructurados** (narrativa de foros, reportes macro) en **inteligencia estructurada** (señales de trading, niveles clave) persistida en una base de datos relacional.
+**TearsDeepMind** es una plataforma autónoma de inteligencia de mercados para el S&P 500. Simula el razonamiento de un trader institucional mediante un pipeline híbrido:
+1.  **Ingeniería de Datos:** Crawling asíncrono y almacenamiento inmutable.
+2.  **Inteligencia Artificial:** Análisis de contexto y precio con Gemini 1.5 Pro.
+3.  **Trazabilidad (Lineage):** Vinculación estricta entre datos crudos y decisiones finales.
 
 ---
 
-## 2. Arquitectura de Software (Capas y Componentes)
+## 2. Arquitectura de Software (Capas y Dominios)
 
-El proyecto implementa una arquitectura monolítica modular basada en **Spring Boot 3.2** y **Java 21**, estructurada en capas clásicas pero con segregación de dominios.
+Monolito modular en **Spring Boot 3.2 (Java 21)** con segregación estricta de esquemas en PostgreSQL.
 
-### A. Capa de Presentación (REST API)
-Expone la funcionalidad del sistema al mundo exterior y al programador de tareas.
-*   **`CrawlerControllerV2`**: Gestiona la ingesta de datos brutos. Permite lanzar extracciones bajo demanda o verificar cambios.
-*   **`PipelineController`**: El punto de entrada para ejecutar el ciclo de inteligencia completo (Extracción -> Análisis -> Persistencia -> Alerta).
-*   **`SubscriberController`**: Gestión dinámica de la lista de distribución de reportes.
-*   **`HistoryController`**: Provee acceso a la memoria histórica del agente (análisis pasados y evolución de niveles).
+### A. Capa de Ingesta (The Senses)
+*   **`CrawlerService`**: Usa **Virtual Threads** para orquestar navegadores Selenium en paralelo. Extrae Macro y Quant.
+*   **`IngestionService`**: Gatekeeper de integridad. Calcula SHA-256 de los datos entrantes y los persiste en `ingestion.raw_documents`. Es la **Fuente de la Verdad Inmutable**.
 
 ### B. Capa de Negocio (Core Logic)
-*   **`TearsAgentService` (El Cerebro):** Integra el LLM Gemini con lógica de reintentos y fallback. Utiliza templates dinámicos para estructurar la salida.
-*   **`SubscriberService`**: Gestiona el ciclo de vida de los destinatarios de los informes.
-*   **`PipelineService`**: Director de orquesta que coordina el flujo completo de datos e inteligencia.
-*   **`EmailService`**: Sistema de notificaciones que consulta dinámicamente los suscriptores activos en BD.
-*   **`CrawlerService` (Los Ojos):** Utiliza Selenium/RemoteWebDriver para la extracción asíncrona de datos financieros.
+*   **`PipelineService`**: Orquestador central. Sincroniza la disponibilidad de datos crudos antes de disparar el análisis.
+*   **`TearsAgentService`**: Cliente de IA. Inyecta el contenido de `raw_documents` en prompts dinámicos. Gestiona reintentos y fallback.
+*   **`HistoricalBackfillService`**: Permite la re-ingesta masiva de datos históricos desde el sistema de archivos legado hacia la nueva arquitectura de lineaje.
 
 ### C. Capa de Persistencia (Data Access)
-Utiliza **JPA/Hibernate** sobre **PostgreSQL**, con un diseño de esquema segregado gestionado por **Flyway**.
-*   **Schema `crawler`**: Aísla la logística de extracción (`crawler_jobs`).
-*   **Schema `analysis`**: Contiene el conocimiento (`daily_analysis`, `quant_memory`) y la meta-información (`templates`).
-*   **Schema `notification`**: Gestión de suscriptores (`subscribers`).
-*   **Conversión Flexible:** Uso de `AttributeConverter` para mapear columnas JSON a `Map<String, Object>`.
+Base de datos PostgreSQL segregada por esquemas (DDD):
+*   **Schema `ingestion`**: Datos crudos (`raw_documents`). Inmutable.
+*   **Schema `analysis`**: Inteligencia procesada (`daily_analysis`, `quant_memory`). Contiene `source_document_id` (FK lógica) para trazabilidad.
+*   **Schema `notification`**: Gestión de audiencia (`subscribers`) e histórico de envíos (`reports`).
+*   **Schema `crawler`**: Logística operativa (`crawler_jobs`).
+
+### D. Capa de Entrega (The Voice)
+*   **`EmailService`**: Genera correos MIME Multipart con el informe consolidado en Markdown como adjunto.
+*   **`SubscriberService`**: API para gestión dinámica de suscriptores (Active/Inactive).
 
 ---
 
-## 3. Modelo de Dominio y Datos
+## 3. Flujo de Datos (The Lineage)
 
-### Inteligencia Narrativa (`DailyAnalysis`)
-*   **Propósito:** Entender el *contexto* (Régimen, Sesgo Macro, Estructura SPX).
+El sistema garantiza que cada conclusión analítica pueda rastrearse hasta su fuente original:
+`Web` -> `Crawler` -> `RawDocument (Ingestion)` -> `AI Processing` -> `Analysis Entity` -> `Final Report`
 
-### Inteligencia Cuantitativa (`QuantMemory`)
-*   **Propósito:** Definir el *precio* (Niveles Gamma, Reversión, Riesgo).
-
-### Notificaciones (`Subscribers`)
-*   **Propósito:** Gestión dinámica de la audiencia. Permite activar/desactivar receptores sin reinicio del sistema.
+1.  **Ingesta:** Se descarga el dato y se firma (Checksum). Se guarda en `ingestion`.
+2.  **Análisis:** El LLM lee de `ingestion`. El resultado se guarda en `analysis` referenciando el ID del documento de ingestión.
+3.  **Reporte:** Se consolida la información en un `ReportEntity` listo para envío.
 
 ---
 
-## 4. Lógica de IA y Flujo de Decisión
-
-1.  **Ingesta Dual:** Recuperación de narrativa y datos cuantitativos.
-2.  **Context Injection:** Fusión de textos en el prompt maestro.
-3.  **Razonamiento Guiado:** Generación de informe Markdown (Analista Institucional).
-4.  **Extracción Estructurada:** Mapeo de Markdown a JSON usando templates en BD para garantizar consistencia técnica.
-
----
-
-## 5. Infraestructura y Operaciones
-
-*   **Runtime:** Contenedores Docker (App, PostgreSQL, Selenium Standalone).
-*   **Base de Datos:** PostgreSQL con versionado de esquema estricto (Flyway V1-V4).
-*   **Observabilidad:** Punto de mejora detectado (pendiente añadir Actuator/Prometheus).
+## 4. Estado Actual (V2.1)
+*   **Infraestructura:** Docker Compose (App, Postgres, Selenium Standalone).
+*   **Gestión de Cambios:** Flyway (V1-V5).
+*   **Observabilidad:** Logging estándar (Log4j2/Slf4j).
+*   **Resiliencia:** Manejo de errores en Pipeline, reintentos en Crawler.
 
 ---
-
-## 6. Diagnóstico y Recomendaciones (Senior Audit)
-1.  **Observabilidad:** Implementar endpoints de salud y métricas.
-2.  **Resiliencia:** Migrar lógica manual de reintentos de IA a Resilience4j.
-3.  **Auditoría:** Crear tabla de histórico de envíos de email para trazabilidad completa.

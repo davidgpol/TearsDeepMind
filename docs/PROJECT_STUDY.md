@@ -1,70 +1,104 @@
-# Estudio Global: Proyecto TearsDeepMind (Actualizado)
+# Estudio Arquitectónico Integral: TearsDeepMind v2.1
 
-## 1. Visión General del Sistema
-**TearsDeepMind** es una plataforma autónoma de inteligencia financiera diseñada para operar el índice **SP500**. Su núcleo es un orquestador híbrido que combina **Ingeniería de Datos tradicional** (crawling) con **Inteligencia Artificial Generativa** (Gemini LLM) para simular el proceso de toma de decisiones de un trader institucional.
+**Fecha de Actualización:** 05 Febrero 2026
+**Versión:** 2.1 (Data Lineage & Robustness)
 
-El sistema transforma **datos no estructurados** (narrativa de foros, reportes macro) en **inteligencia estructurada** (señales de trading, niveles clave) persistida en una base de datos relacional.
-
----
-
-## 2. Arquitectura de Software (Capas y Componentes)
-
-El proyecto implementa una arquitectura monolítica modular basada en **Spring Boot 3.2** y **Java 21**, estructurada en capas clásicas pero con segregación de dominios.
-
-### A. Capa de Presentación (REST API)
-Expone la funcionalidad del sistema al mundo exterior y al programador de tareas.
-*   **`CrawlerControllerV2`**: Gestiona la ingesta de datos brutos. Permite lanzar extracciones bajo demanda o verificar cambios.
-*   **`PipelineController`**: El punto de entrada para ejecutar el ciclo de inteligencia completo (Extracción -> Análisis -> Persistencia -> Alerta).
-*   **`SubscriberController`**: Gestión dinámica de la lista de distribución de reportes.
-*   **`HistoryController`**: Provee acceso a la memoria histórica del agente (análisis pasados y evolución de niveles).
-
-### B. Capa de Negocio (Core Logic)
-*   **`TearsAgentService` (El Cerebro):** Integra el LLM Gemini con lógica de reintentos y fallback. Utiliza templates dinámicos para estructurar la salida.
-*   **`SubscriberService`**: Gestiona el ciclo de vida de los destinatarios de los informes.
-*   **`PipelineService`**: Director de orquesta que coordina el flujo completo de datos e inteligencia.
-*   **`EmailService`**: Sistema de notificaciones que consulta dinámicamente los suscriptores activos en BD.
-*   **`CrawlerService` (Los Ojos):** Utiliza Selenium/RemoteWebDriver para la extracción asíncrona de datos financieros.
-
-### C. Capa de Persistencia (Data Access)
-Utiliza **JPA/Hibernate** sobre **PostgreSQL**, con un diseño de esquema segregado gestionado por **Flyway**.
-*   **Schema `crawler`**: Aísla la logística de extracción (`crawler_jobs`).
-*   **Schema `analysis`**: Contiene el conocimiento (`daily_analysis`, `quant_memory`) y la meta-información (`templates`).
-*   **Schema `notification`**: Gestión de suscriptores (`subscribers`).
-*   **Conversión Flexible:** Uso de `AttributeConverter` para mapear columnas JSON a `Map<String, Object>`.
+## 1. Definición del Sistema
+**TearsDeepMind** es una plataforma autónoma de inteligencia de mercados diseñada para operar el índice S&P 500. A diferencia de un bot de trading algorítmico tradicional basado en indicadores técnicos, TearsDeepMind simula el proceso cognitivo de un analista institucional, combinando:
+1.  **Extracción de Datos No Estructurados:** Lectura de narrativa macroeconómica y foros especializados.
+2.  **Modelado Cuantitativo:** Ingesta de niveles de volatilidad (VIX), Gamma Exposure (GEX) y Dark Pools.
+3.  **Razonamiento LLM:** Uso de Gemini Pro para sintetizar una tesis de inversión diaria.
+4.  **Linaje de Datos (Data Lineage):** Trazabilidad completa desde la fuente original hasta la señal final.
 
 ---
 
-## 3. Modelo de Dominio y Datos
+## 2. Arquitectura de Software (Monolito Modular)
 
-### Inteligencia Narrativa (`DailyAnalysis`)
-*   **Propósito:** Entender el *contexto* (Régimen, Sesgo Macro, Estructura SPX).
+El sistema está construido sobre **Spring Boot 3.2** y **Java 21**, utilizando características modernas como *Virtual Threads* para alta concurrencia en I/O.
 
-### Inteligencia Cuantitativa (`QuantMemory`)
-*   **Propósito:** Definir el *precio* (Niveles Gamma, Reversión, Riesgo).
+### A. Capa de Ingesta (The Senses)
+Esta capa es responsable de interactuar con el mundo exterior y "traer" la información al sistema de forma inmutable.
 
-### Notificaciones (`Subscribers`)
-*   **Propósito:** Gestión dinámica de la audiencia. Permite activar/desactivar receptores sin reinicio del sistema.
+*   **`CrawlerService`**: Motor de extracción web basado en Selenium/RemoteWebDriver.
+    *   *Arquitectura:* Usa `newVirtualThreadPerTaskExecutor` para lanzar múltiples navegadores en paralelo sin bloquear hilos del SO.
+    *   *Resiliencia:* Implementa esperas explícitas y reintentos (aunque con selectores hardcoded).
+*   **`IngestionService`**: Gatekeeper de la base de datos.
+    *   *Función:* Recibe JSONs crudos, calcula un `checksum` (SHA-256) para evitar duplicados y los persiste en la tabla `ingestion.raw_documents`.
+    *   *Inmutabilidad:* Una vez escrito, un `RawDocumentEntity` nunca se modifica. Es la "Fuente de la Verdad".
+
+### B. Capa de Orquestación (The Brain)
+Coordina el flujo de datos para producir inteligencia.
+
+*   **`PipelineService`**: El director de orquesta.
+    *   *Flujo V5:* 
+        1.  Verifica existencia de documentos crudos para la fecha `T`.
+        2.  Si faltan, dispara el `CrawlerService` de forma asíncrona y espera (`CompletableFuture.allOf`).
+        3.  Recupera los documentos crudos de `ingestion`.
+        4.  Invoca a `TearsAgentService`.
+        5.  Persiste el resultado enlazando el `analysis` con el `raw_document` (Foreign Key lógica).
+*   **`TearsAgentService`**: Cliente del LLM.
+    *   *Lógica:* Construye prompts dinámicos inyectando el contenido de los documentos crudos.
+    *   *Reliability:* Implementa lógica de fallback y reintentos manuales para manejar "Overloaded" exceptions de la API de Gemini.
+
+### C. Capa de Dominio y Persistencia (The Memory)
+La base de datos PostgreSQL está estrictamente segregada por esquemas (DDD en SQL), gestionada por **Flyway**.
+
+1.  **Schema `crawler`**:
+    *   `crawler_jobs`: Logística de ejecuciones, estados de éxito/fracaso.
+2.  **Schema `ingestion` (NUEVO V5)**:
+    *   `raw_documents`: Almacén de blobs JSON. Campos: `id`, `checksum`, `content`, `source_type` (MACRO/QUANT), `extraction_date`.
+3.  **Schema `analysis`**:
+    *   `daily_analysis`: La narrativa procesada. Columna `source_document_id` apunta a `raw_documents`.
+    *   `quant_memory`: Los números procesados. Columna `source_document_id` apunta a `raw_documents`.
+    *   `templates`: Prompts del sistema versionados.
+4.  **Schema `notification`**:
+    *   `subscribers`: Lista de distribución dinámica con estados (ACTIVE/INACTIVE).
+    *   `reports`: Histórico de informes generados (Markdown/PDF) listos para envío.
+
+### D. Capa de Entrega (The Voice)
+*   **`EmailService`**:
+    *   Construye correos MIME Multipart.
+    *   Cuerpo: Resumen ejecutivo (Bias + Headline).
+    *   Adjunto: Informe completo `.md` (previamente guardado en `ReportEntity`).
+*   **`SubscriberService`**: Permite la gestión "en caliente" de quién recibe los correos a través de una API REST.
 
 ---
 
-## 4. Lógica de IA y Flujo de Decisión
+## 3. Flujos de Datos Críticos
 
-1.  **Ingesta Dual:** Recuperación de narrativa y datos cuantitativos.
-2.  **Context Injection:** Fusión de textos en el prompt maestro.
-3.  **Razonamiento Guiado:** Generación de informe Markdown (Analista Institucional).
-4.  **Extracción Estructurada:** Mapeo de Markdown a JSON usando templates en BD para garantizar consistencia técnica.
+### Flujo Diario (Pipeline)
+1.  **Trigger:** Cron (09:00 AM) o REST `/api/v2/pipeline/run/{date}`.
+2.  **Check:** ¿Existen datos en `ingestion.raw_documents` para hoy?
+    *   *NO:* `CrawlerService` despierta -> Selenium extrae -> `IngestionService` guarda (Checksum OK).
+    *   *SI:* Se procede.
+3.  **Reasoning:** `PipelineService` lee Raw -> `TearsAgent` piensa -> Genera `DailyAnalysis` y `QuantMemory`.
+4.  **Reporting:** Se genera un `ReportEntity` (Markdown consolidado) enlazando ambos análisis.
+5.  **Delivery:** `EmailService` lee `ReportEntity` y lo envía a todos los `subscribers` activos.
+
+### Flujo de Backfill (Histórico)
+*   **`HistoricalBackfillService`**:
+    *   Itera sobre carpetas locales de una estructura de archivos legacy.
+    *   Inyecta los JSONs antiguos en `ingestion.raw_documents`.
+    *   Dispara el `PipelineService` para re-generar la inteligencia y poblar la base de datos con datos históricos limpios.
 
 ---
 
-## 5. Infraestructura y Operaciones
+## 4. Tecnologías Clave
 
-*   **Runtime:** Contenedores Docker (App, PostgreSQL, Selenium Standalone).
-*   **Base de Datos:** PostgreSQL con versionado de esquema estricto (Flyway V1-V4).
-*   **Observabilidad:** Punto de mejora detectado (pendiente añadir Actuator/Prometheus).
+*   **Lenguaje:** Java 21 (LTS).
+*   **Framework:** Spring Boot 3.2.x.
+*   **BD:** PostgreSQL 16 (con Flyway).
+*   **IA:** Google Gemini Pro 1.5.
+*   **Extracción:** Selenium Grid (Standalone Chrome).
+*   **Contenedores:** Docker & Docker Compose.
+*   **Testing:** JUnit 5 (Actualmente reducidos en integración).
 
 ---
 
-## 6. Diagnóstico y Recomendaciones (Senior Audit)
-1.  **Observabilidad:** Implementar endpoints de salud y métricas.
-2.  **Resiliencia:** Migrar lógica manual de reintentos de IA a Resilience4j.
-3.  **Auditoría:** Crear tabla de histórico de envíos de email para trazabilidad completa.
+## 5. Estado Actual (Snapshot)
+*   **Integridad:** Alta. El sistema de checksums evita duplicados.
+*   **Trazabilidad:** Completa. Es posible auditar por qué el agente dijo "BULLISH" mirando el documento crudo exacto.
+*   **Resiliencia:** Media. El Crawler es el punto único de fallo (selectores hardcoded). El Pipeline tiene reintentos básicos.
+*   **Operatividad:** Alta. API REST completa para gestión y backfill.
+
+Este documento sirve como la "Fuente de la Verdad" arquitectónica para el desarrollo continuo.

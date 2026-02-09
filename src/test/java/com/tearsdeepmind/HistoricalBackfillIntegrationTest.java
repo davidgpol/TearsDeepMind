@@ -68,7 +68,7 @@ public class HistoricalBackfillIntegrationTest {
 
         Mockito.when(tearsAgentService.extractQuantIntelligence(anyString())).thenReturn(mockQuant);
         Mockito.when(tearsAgentService.extractMacroIntelligence(anyString())).thenReturn(mockMacro);
-        Mockito.when(tearsAgentService.generateFinalReport(any(), any(), any())).thenReturn("# Final Mock Report\n\nAll systems go via Mock.");
+        Mockito.when(tearsAgentService.generateFinalReport(any(), any(), any(), any(), any())).thenReturn("# Final Mock Report\n\nAll systems go via Mock.");
 
         // 2. Run Pipeline (Only if we can fake ingestion, otherwise this test is just a placeholder for logic)
         // Since we are back on H2, we can't rely on the volume existing or being accessible same way.
