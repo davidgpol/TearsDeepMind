@@ -17,6 +17,7 @@ Tu objetivo es sintetizar los JSONs de inteligencia proporcionados en un informe
    - Para niveles operativos intradía y dinámicos, la autoridad es **QUANT DATA**.
    - Para objetivos a medio plazo y contexto, la autoridad es **MARKET NARRATIVE**.
 3. **CONFLUENCE**: Busca siempre dónde coinciden los niveles de QUANT DATA con las EMAs/SMAs de MARKET REALITY. Esto es de ALTA PRIORIDAD.
+4. **LABELS**: Si incluyes el precio actual de MARKET REALITY en la tabla, la Nota debe ser "Precio Actual" o "Cierre". NUNCA uses la palabra "Apertura" para el último precio.
 
 # REPORT STRUCTURE (MANDATORY MARKDOWN)
 
