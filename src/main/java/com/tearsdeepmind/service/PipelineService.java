@@ -68,8 +68,14 @@ public class PipelineService {
 
     private String getTechnicalContextAsString(LocalDate date) {
         StringBuilder sb = new StringBuilder();
+        
+        // Determine Market Status (Simplified logic based on NY time)
+        java.time.ZonedDateTime nowNY = java.time.ZonedDateTime.now(java.time.ZoneId.of("America/New_York"));
+        boolean isMarketOpen = nowNY.getHour() >= 9 && (nowNY.getHour() < 16 || (nowNY.getHour() == 16 && nowNY.getMinute() == 0)) && nowNY.getDayOfWeek().getValue() <= 5;
+        String priceLabel = isMarketOpen && date.equals(nowNY.toLocalDate()) ? "LIVE PRICE (Market Open)" : "CLOSE PRICE (Final)";
+
         dailyCandleRepository.findBySymbolAndDate("^GSPC", date).ifPresent(c -> {
-            sb.append(String.format("SPX Close: %.2f | ", c.getClose()));
+            sb.append(String.format("SPX %s: %.2f | ", priceLabel, c.getClose()));
         });
         dailyCandleRepository.findBySymbolAndDate("^VIX", date).ifPresent(c -> {
             sb.append(String.format("VIX: %.2f\n", c.getClose()));
