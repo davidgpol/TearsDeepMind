@@ -34,19 +34,45 @@ public class MarketDataService {
     }
 
     public void syncDailyData(String symbol, String range) {
-        logger.info("Syncing daily data for {} with range {}", symbol, range);
-        try {
-            YahooChartResponse response = restClient.get()
-                    .uri("/v8/finance/chart/{symbol}?interval=1d&range={range}", symbol, range)
-                    .retrieve()
-                    .body(YahooChartResponse.class);
+        syncHistoryWithRetry(symbol, range);
+    }
 
-            if (response != null && response.chart().result() != null && !response.chart().result().isEmpty()) {
-                processYahooResult(response.chart().result().get(0), symbol, true);
+    public void syncHistoryWithRetry(String symbol, String range) {
+        int maxRetries = 3;
+        int attempt = 0;
+        long backoff = 2000; // 2 seconds
+
+        while (attempt < maxRetries) {
+            try {
+                logger.info("Attempt {}/{} to sync history for {} with range {}", attempt + 1, maxRetries, symbol, range);
+                YahooChartResponse response = restClient.get()
+                        .uri("/v8/finance/chart/{symbol}?interval=1d&range={range}", symbol, range)
+                        .retrieve()
+                        .body(YahooChartResponse.class);
+
+                if (response != null && response.chart().result() != null && !response.chart().result().isEmpty()) {
+                    processYahooResult(response.chart().result().get(0), symbol, true);
+                    logger.info("Successfully synced history for {}", symbol);
+                    return; // Success
+                } else {
+                    logger.warn("Empty response for {}, retrying...", symbol);
+                }
+            } catch (Exception e) {
+                logger.error("Error syncing history for {} (Attempt {}): {}", symbol, attempt + 1, e.getMessage());
             }
-        } catch (Exception e) {
-            logger.error("Error syncing daily data for {}", symbol, e);
+
+            attempt++;
+            if (attempt < maxRetries) {
+                try {
+                    Thread.sleep(backoff);
+                    backoff *= 2; // Exponential backoff
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
+            }
         }
+        logger.error("Failed to sync history for {} after {} attempts", symbol, maxRetries);
     }
 
     public void syncIntradayData(String symbol) {

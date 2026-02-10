@@ -48,6 +48,13 @@ public class MarketDataController {
         return ResponseEntity.ok("Sync started for range: " + range);
     }
 
+    @PostMapping("/backfill")
+    @Operation(summary = "Historical Backfill", description = "Downloads extended historical data (e.g., 2y, 5y) with robust retry logic.")
+    public ResponseEntity<String> backfill(@RequestParam String symbol, @RequestParam(defaultValue = "1y") String range) {
+        marketDataService.syncHistoryWithRetry(symbol, range);
+        return ResponseEntity.ok("Backfill triggered for " + symbol + " with range: " + range);
+    }
+
     @PostMapping("/audit/{date}")
     @Operation(summary = "Manual Audit", description = "Runs the 'Judge' algorithm for a specific date.")
     public ResponseEntity<String> audit(@PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
