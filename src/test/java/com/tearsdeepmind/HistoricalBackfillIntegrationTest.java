@@ -61,6 +61,7 @@ public class HistoricalBackfillIntegrationTest {
             targetDate,
             "Mock Source Title",
             new MarketMemoryRecord.SentimentProfile("Bullish", "High", "Risk-On"),
+            null, // structured_prediction
             new MarketMemoryRecord.Drivers("Stable Growth", "Fed Pause", "None", "OpEx"),
             new MarketMemoryRecord.DailyThesis("Buy the Dip", "Rebound to 4200", "Break 4000", "VIX > 20"),
             new MarketMemoryRecord.NarrativeLevels(List.of("SPX > 4050"), List.of("NDX Lagging"))

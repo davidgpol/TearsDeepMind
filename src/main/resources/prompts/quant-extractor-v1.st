@@ -29,13 +29,13 @@ You are a highly precise financial data extractor. Your task is to transform a r
 }
 
 # EXTRACTION LOGIC FOR 'type'
-- "level": Default type.
-- "pivot": Use if 'pivot' is mentioned.
-- "support": Use if 'support' is mentioned in the line.
-- "resistance": Use if 'resistance' is mentioned in the line.
-- "reversal": Use if 'reversal' or 'likelihood of reversal' is mentioned.
-- "magnet": Use if 'magnet', 'magnetism', or 'pin' is mentioned.
-- "target": Use if 'target' or 'objective' is mentioned.
+- "SUPPORT": Use if 'support' is mentioned.
+- "RESISTANCE": Use if 'resistance' is mentioned.
+- "PIVOT": Use if 'pivot' is mentioned.
+- "REVERSAL": Use if 'reversal' is mentioned.
+- "MAGNET": Use if 'magnet', 'pin' or 'target' is mentioned.
+- "GAMMA_LEVEL": Use if 'gamma' is mentioned.
+- "LEVEL": Default for other numeric values.
 
 # INPUT DATA
 {raw_quant_data}

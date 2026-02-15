@@ -143,13 +143,18 @@ public class CrawlerService {
 
     @Async
     public CompletableFuture<Void> extract(String seccion, int dias, String uuid) {
+        return extract(seccion, dias, uuid, null);
+    }
+
+    @Async
+    public CompletableFuture<Void> extract(String seccion, int dias, String uuid, LocalDate targetDate) {
         if (email == null || email.isEmpty() || password == null || password.isEmpty()) {
             return CompletableFuture.completedFuture(null);
         }
         WebDriver driver = null;
         try {
             driver = login(email, password, uuid);
-            crawlAndExtractDataSync(driver, seccion, getSectionUrl(seccion), dias, uuid);
+            crawlAndExtractDataSync(driver, seccion, getSectionUrl(seccion), dias, uuid, targetDate);
         } catch (Exception e) {
             logger.error("Sync extract error", e);
         } finally {
@@ -286,16 +291,28 @@ public class CrawlerService {
                 
                 String dateStr = "";
                 try {
-                    WebElement dateEl = workerDriver.findElement(By.cssSelector(".mighty-attribution-meta span"));
+                    // Intento 1: Nuevo formato de la web (Atributo title en el div de fecha)
+                    WebElement dateEl = workerDriver.findElement(By.cssSelector(".feed-item-post-created-at"));
                     dateStr = dateEl.getAttribute("title");
                     if (dateStr == null || dateStr.trim().isEmpty()) {
                         dateStr = dateEl.getText();
                     }
-                } catch (Exception e) {}
+                } catch (Exception e) {
+                    logger.warn("[{}] No se pudo encontrar el elemento de fecha por CSS estándar.", job.getJobId());
+                }
                 
-                if (dateStr == null || dateStr.trim().isEmpty()) dateStr = LocalDate.now().toString();
+                LocalDate threadDate;
+                if (dateStr != null && !dateStr.isEmpty() && !dateStr.contains("hace")) {
+                    threadDate = parseDate(dateStr);
+                } else {
+                    // Intento 2: Extraer del título (ej: "13/02")
+                    threadDate = extractDateFromText(title);
+                    if (threadDate == null) {
+                         logger.warn("[{}] No se pudo determinar la fecha del post, usando fecha actual.", job.getJobId());
+                         threadDate = LocalDate.now();
+                    }
+                }
                 
-                LocalDate threadDate = parseDate(dateStr);
                 Path outputPath = getOutputPath(job.getSection(), threadDate);
 
                 String content;
@@ -310,7 +327,7 @@ public class CrawlerService {
                 Files.write(filePath, fullContent.getBytes(StandardCharsets.UTF_8));
                 
                 // --- Save to Database (DQLM Evolution) ---
-                String docType = job.getSection().equals("DailyAnalysis") ? "MACRO" : "QUANT";
+                String docType = job.getSection().equalsIgnoreCase("DailyAnalysis") ? "MACRO" : "QUANT";
                 ingestionService.saveRawDocument(threadDate, docType, fullContent);
 
                 job.markUrlAsCompleted(url);
@@ -407,7 +424,23 @@ public class CrawlerService {
             nextButton.click();
             
             // --- PASO 2: Password ---
-            logger.info("[{}] Paso 2: Esperando a que el campo de contraseña sea visible...", uuid);
+            // NUEVO FLUJO (Feb 2026): Detectar si pide OTP y forzar cambio a contraseña
+            try {
+                logger.info("[{}] Verificando si es necesario cambiar a login con contraseña...", uuid);
+                // Usamos un timeout reducido de 15s para este paso específico
+                WebDriverWait shortWait = new WebDriverWait(driver, Duration.ofSeconds(15));
+                WebElement switchToPasswordBtn = shortWait.until(ExpectedConditions.elementToBeClickable(
+                    By.xpath("//button[contains(text(), 'Sign In with Password') or contains(text(), 'Iniciar sesión con contraseña')]")
+                ));
+                logger.info("[{}] Botón 'Sign In with Password' detectado. Haciendo clic...", uuid);
+                switchToPasswordBtn.click();
+            } catch (Exception e) {
+                // Si salta timeout, quizás la web volvió al flujo antiguo o ya muestra el password.
+                // Logueamos y seguimos intentando encontrar el campo password.
+                logger.warn("[{}] No se detectó botón de cambio a contraseña (o no fue necesario): {}", uuid, e.getMessage());
+            }
+
+            logger.info("[{}] Paso 3: Esperando a que el campo de contraseña sea visible...", uuid);
             WebElement passField = wait.until(ExpectedConditions.visibilityOfElementLocated(By.name("password")));
             logger.info("[{}] Campo de contraseña detectado. Introduciendo password...", uuid);
             passField.clear();
@@ -432,7 +465,7 @@ public class CrawlerService {
         }
     }
 
-    private void crawlAndExtractDataSync(WebDriver driver, String seccion, String sectionUrl, int dias, String uuid) throws InterruptedException, IOException {
+    private void crawlAndExtractDataSync(WebDriver driver, String seccion, String sectionUrl, int dias, String uuid, LocalDate targetDate) throws InterruptedException, IOException {
         driver.get(sectionUrl);
         WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(30));
         wait.until(ExpectedConditions.visibilityOfElementLocated(By.id("feed-list")));
@@ -447,7 +480,7 @@ public class CrawlerService {
                 
                 String dateStr = "";
                 try {
-                    WebElement dateEl = driver.findElement(By.cssSelector(".mighty-attribution-meta span"));
+                    WebElement dateEl = driver.findElement(By.cssSelector(".feed-item-post-created-at"));
                     dateStr = dateEl.getAttribute("title");
                     if (dateStr == null || dateStr.trim().isEmpty()) {
                         dateStr = dateEl.getText();
@@ -456,9 +489,18 @@ public class CrawlerService {
                     logger.warn("[{}] Could not find date element for URL: {}", uuid, url);
                 }
                 
-                if (dateStr == null || dateStr.trim().isEmpty()) dateStr = LocalDate.now().toString();
+                LocalDate threadDate;
+                if (dateStr != null && !dateStr.isEmpty() && !dateStr.contains("hace")) {
+                    threadDate = parseDate(dateStr);
+                } else {
+                    threadDate = extractDateFromText(title);
+                    if (threadDate == null) {
+                        // FALLBACK CRÍTICO: Usar targetDate si existe, sino hoy
+                        threadDate = (targetDate != null) ? targetDate : LocalDate.now();
+                        logger.warn("[{}] Fecha no encontrada en post. Usando fallback: {}", uuid, threadDate);
+                    }
+                }
 
-                LocalDate threadDate = parseDate(dateStr);
                 Path outputPath = getOutputPath(seccion, threadDate);
                 
                 String content;
@@ -473,7 +515,7 @@ public class CrawlerService {
                 Files.write(filePath, fullContent.getBytes(StandardCharsets.UTF_8));
                 
                 // --- Save to Database (DQLM Evolution) ---
-                String docType = seccion.equals("DailyAnalysis") ? "MACRO" : "QUANT";
+                String docType = seccion.equalsIgnoreCase("DailyAnalysis") ? "MACRO" : "QUANT";
                 ingestionService.saveRawDocument(threadDate, docType, fullContent);
 
                 logger.info("[{}] Sync processed: {} (Date: {})", uuid, title, threadDate);
@@ -573,6 +615,24 @@ public class CrawlerService {
     private String getSectionUrl(String seccion) {
         if ("DailyAnalysis".equalsIgnoreCase(seccion)) return "https://tradingedge.club/spaces/20140826";
         if ("QuantUpdates".equalsIgnoreCase(seccion)) return "https://tradingedge.club/spaces/20140900/feed";
+        return null;
+    }
+
+    private LocalDate extractDateFromText(String text) {
+        if (text == null || text.isEmpty()) return null;
+        // Busca patrones como 13/02 o 13_02
+        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("(\\d{1,2})[/_](\\d{1,2})");
+        java.util.regex.Matcher matcher = pattern.matcher(text);
+        if (matcher.find()) {
+            try {
+                int day = Integer.parseInt(matcher.group(1));
+                int month = Integer.parseInt(matcher.group(2));
+                // Asumimos el año actual de la ejecución
+                return LocalDate.of(LocalDate.now().getYear(), month, day);
+            } catch (Exception e) {
+                return null;
+            }
+        }
         return null;
     }
 

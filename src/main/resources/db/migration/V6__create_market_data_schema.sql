@@ -4,7 +4,7 @@ CREATE SCHEMA IF NOT EXISTS market_data;
 
 -- 1. Daily Candles (The Big Picture)
 -- Stores historical daily data for SPX, VIX, etc.
-CREATE TABLE market_data.daily_candles (
+CREATE TABLE IF NOT EXISTS market_data.daily_candles (
     id BIGSERIAL PRIMARY KEY,
     symbol VARCHAR(20) NOT NULL, -- ^GSPC, ^VIX
     date DATE NOT NULL,
@@ -18,12 +18,12 @@ CREATE TABLE market_data.daily_candles (
 );
 
 -- Index for fast range queries (Give me last 200 days)
-CREATE INDEX idx_daily_candles_symbol_date ON market_data.daily_candles(symbol, date DESC);
+CREATE INDEX IF NOT EXISTS idx_daily_candles_symbol_date ON market_data.daily_candles(symbol, date DESC);
 
 -- 2. Intraday Candles (The Movie)
 -- Stores 5-minute candles for detailed auditing.
 -- Retention Policy: We will run a job to delete rows older than 90 days.
-CREATE TABLE market_data.intraday_candles (
+CREATE TABLE IF NOT EXISTS market_data.intraday_candles (
     id BIGSERIAL PRIMARY KEY,
     symbol VARCHAR(20) NOT NULL,
     timestamp TIMESTAMP NOT NULL, -- UTC Epoch
@@ -36,11 +36,11 @@ CREATE TABLE market_data.intraday_candles (
     UNIQUE(symbol, timestamp)
 );
 
-CREATE INDEX idx_intraday_candles_symbol_time ON market_data.intraday_candles(symbol, timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_intraday_candles_symbol_time ON market_data.intraday_candles(symbol, timestamp DESC);
 
 -- 3. Technical Indicators (The Calculator)
 -- Stores the computed values for a specific date to avoid re-calculation.
-CREATE TABLE market_data.technical_indicators (
+CREATE TABLE IF NOT EXISTS market_data.technical_indicators (
     id BIGSERIAL PRIMARY KEY,
     symbol VARCHAR(20) NOT NULL,
     date DATE NOT NULL,
@@ -62,7 +62,7 @@ CREATE TABLE market_data.technical_indicators (
 
 -- 4. Audit Logs (The Judge's Verdict)
 -- Stores the performance review of the Agent's predictions.
-CREATE TABLE market_data.audit_logs (
+CREATE TABLE IF NOT EXISTS market_data.audit_logs (
     id BIGSERIAL PRIMARY KEY,
     date DATE NOT NULL,
     quant_memory_id BIGINT, -- Logical FK to analysis.quant_memory(id)
@@ -80,4 +80,4 @@ CREATE TABLE market_data.audit_logs (
     created_at TIMESTAMP DEFAULT NOW()
 );
 
-CREATE INDEX idx_audit_logs_date ON market_data.audit_logs(date DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_date ON market_data.audit_logs(date DESC);

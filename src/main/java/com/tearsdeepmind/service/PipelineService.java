@@ -9,6 +9,8 @@ import com.tearsdeepmind.entity.ReportEntity;
 import com.tearsdeepmind.repository.DailyAnalysisRepository;
 import com.tearsdeepmind.repository.QuantMemoryRepository;
 import com.tearsdeepmind.repository.ReportRepository;
+import com.tearsdeepmind.repository.PredictionRepository;
+import com.tearsdeepmind.repository.QuantSnapshotRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -37,6 +39,8 @@ public class PipelineService {
     private final com.tearsdeepmind.repository.market.TechnicalIndicatorRepository technicalIndicatorRepository;
     private final com.tearsdeepmind.repository.market.AuditLogRepository auditLogRepository;
     private final com.tearsdeepmind.repository.market.DailyCandleRepository dailyCandleRepository;
+    private final PredictionRepository predictionRepository;
+    private final QuantSnapshotRepository quantSnapshotRepository;
 
     public PipelineService(CrawlerService crawlerService, 
                            TearsAgentService tearsAgentService, 
@@ -50,7 +54,9 @@ public class PipelineService {
                            AuditService auditService,
                            com.tearsdeepmind.repository.market.TechnicalIndicatorRepository technicalIndicatorRepository,
                            com.tearsdeepmind.repository.market.AuditLogRepository auditLogRepository,
-                           com.tearsdeepmind.repository.market.DailyCandleRepository dailyCandleRepository) {
+                           com.tearsdeepmind.repository.market.DailyCandleRepository dailyCandleRepository,
+                           PredictionRepository predictionRepository,
+                           QuantSnapshotRepository quantSnapshotRepository) {
         this.crawlerService = crawlerService;
         this.tearsAgentService = tearsAgentService;
         this.ingestionService = ingestionService;
@@ -64,6 +70,8 @@ public class PipelineService {
         this.technicalIndicatorRepository = technicalIndicatorRepository;
         this.auditLogRepository = auditLogRepository;
         this.dailyCandleRepository = dailyCandleRepository;
+        this.predictionRepository = predictionRepository;
+        this.quantSnapshotRepository = quantSnapshotRepository;
     }
 
     private String getTechnicalContextAsString(LocalDate date) {
@@ -147,6 +155,38 @@ public class PipelineService {
             reportRepository.save(reportEntity);
             result.put("report_generated", true);
 
+            // STEP 3.1: Persist Structured Intelligence (Now that Report exists)
+            if (quantData != null && quantData.extracted_levels() != null) {
+                quantData.extracted_levels().forEach(level -> {
+                    if (level.numeric_values() != null && !level.numeric_values().isEmpty()) {
+                        java.math.BigDecimal value = java.math.BigDecimal.valueOf(level.numeric_values().get(0));
+                        com.tearsdeepmind.entity.QuantSnapshotEntity snapshot = new com.tearsdeepmind.entity.QuantSnapshotEntity(
+                            date, 
+                            level.type() != null ? level.type().toUpperCase() : "LEVEL",
+                            value,
+                            null
+                        );
+                        quantSnapshotRepository.save(snapshot);
+                    }
+                });
+                logger.info("Saved structured snapshots linked to report {}", date);
+            }
+
+            if (marketData != null && marketData.structured_prediction() != null) {
+                java.util.Map<String, Object> payload = new java.util.HashMap<>();
+                payload.put("direction", marketData.structured_prediction().direction());
+                payload.put("volatility", marketData.structured_prediction().volatility());
+                payload.put("primary_target", marketData.structured_prediction().primary_target());
+
+                com.tearsdeepmind.entity.PredictionEntity prediction = new com.tearsdeepmind.entity.PredictionEntity(
+                    date, 
+                    date, 
+                    payload
+                );
+                predictionRepository.save(prediction);
+                logger.info("Saved structured prediction linked to report {}", date);
+            }
+
             // STEP 4: Distribution
             try {
                 // Refactor EmailService slightly to take just the Markdown and Date/Bias if possible
@@ -176,8 +216,9 @@ public class PipelineService {
             String uuid = java.util.UUID.randomUUID().toString().substring(0,8);
             
             // Sync extraction for pipeline (Waiting for Completion)
-            java.util.concurrent.CompletableFuture<Void> macroTask = crawlerService.extract("DailyAnalysis", 1, uuid + "-m");
-            java.util.concurrent.CompletableFuture<Void> quantTask = crawlerService.extract("QuantUpdates", 1, uuid + "-q");
+            // PASS DATE TO CRAWLER TO FORCE CORRECT ASSIGNMENT ON FALLBACK
+            java.util.concurrent.CompletableFuture<Void> macroTask = crawlerService.extract("DailyAnalysis", 1, uuid + "-m", date);
+            java.util.concurrent.CompletableFuture<Void> quantTask = crawlerService.extract("QuantUpdates", 1, uuid + "-q", date);
             
             java.util.concurrent.CompletableFuture.allOf(macroTask, quantTask).join();
             logger.info("Crawler tasks finished for {}. Resuming pipeline.", date);

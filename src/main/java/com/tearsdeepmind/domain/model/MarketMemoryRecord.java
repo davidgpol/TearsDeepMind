@@ -7,6 +7,7 @@ public record MarketMemoryRecord(
     LocalDate date,
     String source_title,
     SentimentProfile sentiment_profile,
+    StructuredPrediction structured_prediction,
     Drivers drivers,
     DailyThesis daily_thesis,
     NarrativeLevels narrative_levels
@@ -15,6 +16,14 @@ public record MarketMemoryRecord(
         String bias,
         String conviction,
         String risk_appetite
+    ) {}
+
+    public record StructuredPrediction(
+        String direction,
+        String volatility,
+        Double expected_range_top,
+        Double expected_range_bottom,
+        Double primary_target
     ) {}
 
     public record Drivers(

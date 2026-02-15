@@ -18,6 +18,14 @@ You are a Senior Financial Intelligence Analyst. Your task is to synthesize a lo
     "risk_appetite": "risk_on | risk_off | defensive | selective"
   },
 
+  "structured_prediction": {
+    "direction": "UP | DOWN | FLAT",
+    "volatility": "EXPAND | CONTRACT | STABLE",
+    "expected_range_top": 0.0,
+    "expected_range_bottom": 0.0,
+    "primary_target": 0.0
+  },
+
   "drivers": {
     "macro_economics": "Summary of economic data mentioned (NFP, CPI, GDP, Employment).",
     "monetary_policy": "Summary of Fed stance, interest rate expectations, and central bank speakers.",
