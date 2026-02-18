@@ -44,7 +44,7 @@ public class MarketDataController {
     public ResponseEntity<String> sync(@RequestParam(defaultValue = "5d") String range) {
         marketDataService.syncDailyData("^GSPC", range);
         marketDataService.syncDailyData("^VIX", range);
-        marketDataService.syncIntradayData("^GSPC");
+        marketDataService.syncIntradayData("^GSPC", LocalDate.now());
         return ResponseEntity.ok("Sync started for range: " + range);
     }
 

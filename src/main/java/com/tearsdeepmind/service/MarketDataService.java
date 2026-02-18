@@ -8,6 +8,8 @@ import com.tearsdeepmind.repository.market.IntradayCandleRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.RestClient;
 
 import java.math.BigDecimal;
@@ -51,7 +53,7 @@ public class MarketDataService {
                         .body(YahooChartResponse.class);
 
                 if (response != null && response.chart().result() != null && !response.chart().result().isEmpty()) {
-                    processYahooResult(response.chart().result().get(0), symbol, true);
+                    processYahooResult(response.chart().result().get(0), symbol, true, 0L, 0L);
                     logger.info("Successfully synced history for {}", symbol);
                     return; // Success
                 } else {
@@ -75,24 +77,34 @@ public class MarketDataService {
         logger.error("Failed to sync history for {} after {} attempts", symbol, maxRetries);
     }
 
-    public void syncIntradayData(String symbol) {
-        logger.info("Syncing 5m intraday data for {}", symbol);
+    public void syncIntradayData(String symbol, LocalDate date) {
+        logger.info("Syncing 5m intraday data for {} on {}", symbol, date);
         try {
+            long startOfDay = date.atStartOfDay(ZoneId.of("America/New_York")).toEpochSecond();
+            long endOfDay = date.plusDays(1).atStartOfDay(ZoneId.of("America/New_York")).toEpochSecond() - 1;
+
             YahooChartResponse response = restClient.get()
-                    .uri("/v8/finance/chart/{symbol}?interval=5m&range=1d", symbol)
+                    .uri("/v8/finance/chart/{symbol}?interval=5m&period1={period1}&period2={period2}", symbol, startOfDay, endOfDay)
                     .retrieve()
                     .body(YahooChartResponse.class);
 
             if (response != null && response.chart().result() != null && !response.chart().result().isEmpty()) {
-                processYahooResult(response.chart().result().get(0), symbol, false);
+                processYahooResult(response.chart().result().get(0), symbol, false, startOfDay, endOfDay);
             }
+        } catch (HttpClientErrorException | HttpServerErrorException e) {
+            logger.warn("HTTP Error syncing intraday data for {} on {}: Status {} - {}", symbol, date, e.getStatusCode(), e.getStatusText());
         } catch (Exception e) {
-            logger.error("Error syncing intraday data for {}", symbol, e);
+            logger.error("Unexpected error syncing intraday data for {} on {}", symbol, date, e);
         }
     }
 
-    private void processYahooResult(YahooChartResponse.Result result, String symbol, boolean isDaily) {
+    private void processYahooResult(YahooChartResponse.Result result, String symbol, boolean isDaily, long startTimestamp, long endTimestamp) {
         List<Long> timestamps = result.timestamp();
+        if (timestamps == null) {
+            logger.warn("No timestamps found in Yahoo Finance response for symbol {}", symbol);
+            return;
+        }
+
         YahooChartResponse.Quote quote = result.indicators().quote().get(0);
 
         List<Double> opens = quote.open();
@@ -101,12 +113,23 @@ public class MarketDataService {
         List<Double> closes = quote.close();
         List<Long> volumes = quote.volume();
 
+        int processedCount = 0;
         for (int i = 0; i < timestamps.size(); i++) {
-            if (opens.get(i) == null || closes.get(i) == null) continue;
+            Long currentTimestamp = timestamps.get(i);
+            if (currentTimestamp == null || opens.get(i) == null || closes.get(i) == null) {
+                continue;
+            }
+
+            // Apply timestamp filter ONLY for intraday data
+            if (!isDaily) {
+                if (currentTimestamp < startTimestamp || currentTimestamp > endTimestamp) {
+                    continue; // Skip this record as it's outside the requested day
+                }
+            }
 
             if (isDaily) {
-                LocalDate date = Instant.ofEpochSecond(timestamps.get(i))
-                        .atZone(ZoneId.systemDefault()).toLocalDate();
+                LocalDate date = Instant.ofEpochSecond(currentTimestamp)
+                        .atZone(ZoneId.of("America/New_York")).toLocalDate();
                 
                 if (dailyCandleRepository.findBySymbolAndDate(symbol, date).isEmpty()) {
                     DailyCandleEntity entity = new DailyCandleEntity(
@@ -118,10 +141,11 @@ public class MarketDataService {
                         volumes.get(i)
                     );
                     dailyCandleRepository.save(entity);
+                    processedCount++;
                 }
             } else {
-                LocalDateTime dateTime = Instant.ofEpochSecond(timestamps.get(i))
-                        .atZone(ZoneId.systemDefault()).toLocalDateTime();
+                LocalDateTime dateTime = Instant.ofEpochSecond(currentTimestamp)
+                        .atZone(ZoneId.of("America/New_York")).toLocalDateTime();
                 
                 if (intradayCandleRepository.findBySymbolAndTimestamp(symbol, dateTime).isEmpty()) {
                     IntradayCandleEntity entity = new IntradayCandleEntity(
@@ -133,8 +157,10 @@ public class MarketDataService {
                         volumes.get(i)
                     );
                     intradayCandleRepository.save(entity);
+                    processedCount++;
                 }
             }
         }
+        logger.info("Processed and saved {} new candles for symbol {}. Filter applied: {}", processedCount, symbol, !isDaily);
     }
 }

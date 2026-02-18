@@ -116,81 +116,101 @@ public class PipelineService {
         
         try {
             // STEP 0: Market Data Sync & Audit
-            logger.info("Step 0: Syncing market data and auditing performance...");
-            marketDataService.syncDailyData("^GSPC", "5d");
-            marketDataService.syncDailyData("^VIX", "5d");
-            marketDataService.syncIntradayData("^GSPC");
+            logger.info("Step 0: Syncing market data (1y range) and auditing performance for {}...", date);
             
+            // FIX: Use 1y range to ensure coverage for historical backfills
+            marketDataService.syncDailyData("^GSPC", "1y");
+            marketDataService.syncDailyData("^VIX", "1y");
+            
+            // Sync intraday (Best effort for past dates)
+            marketDataService.syncIntradayData("^GSPC", date);
+            
+            // Calculate technicals and perform audit for the PREVIOUS day
             technicalIndicatorService.calculateAndSaveIndicators("^GSPC", date.minusDays(1));
             auditService.auditDay(date.minusDays(1));
 
-            // STEP 1: Ingestion (Crawler -> BD)
-            // Note: The CrawlerService already calls ingestionService inside its extraction methods
-            // We ensure we have the data by forcing a check/extract if needed
-            ensureRawDocumentsPresent(date);
+            // OPTIMIZATION: Check if report already exists
+            String markdownReport;
+            MarketMemoryRecord marketData = null;
+            QuantMemoryRecord quantData = null;
 
-            // STEP 2: Intelligence (BD Ingestion -> BD Analysis)
-            QuantMemoryRecord quantData = processQuant(date).orElse(null);
-            MarketMemoryRecord marketData = processMacro(date).orElse(null);
-            
-            result.put("quant_present", quantData != null);
-            result.put("macro_present", marketData != null);
+            Optional<ReportEntity> existingReport = reportRepository.findById(date);
 
-            if (quantData == null && marketData == null) {
-                throw new RuntimeException("No data available to process for date: " + date);
-            }
+            if (existingReport.isPresent()) {
+                logger.info("Report for {} already exists. Skipping AI generation. Audit performed.", date);
+                markdownReport = existingReport.get().getContent();
+                result.put("report_generated", false);
+                result.put("audit_performed", true);
+                
+                // Try to recover Market Data context for Email Subject (Bias)
+                // We fetch the DailyAnalysisEntity and try to map it back if needed, 
+                // but for now we proceed. If needed, we could inject ObjectMapper to deserialize.
+                
+            } else {
+                // STEP 1: Ingestion (Crawler -> BD)
+                ensureRawDocumentsPresent(date);
 
-            // STEP 3: Synthesis (BD Analysis -> BD Reports)
-            String marketReality = getTechnicalContextAsString(date);
-            String auditVerdict = getAuditVerdictAsString(date.minusDays(1));
+                // STEP 2: Intelligence (BD Ingestion -> BD Analysis)
+                quantData = processQuant(date).orElse(null);
+                marketData = processMacro(date).orElse(null);
+                
+                result.put("quant_present", quantData != null);
+                result.put("macro_present", marketData != null);
 
-            String markdownReport = tearsAgentService.generateFinalReport(date, quantData, marketData, marketReality, auditVerdict);
-            
-            ReportEntity reportEntity = new ReportEntity(
-                date, 
-                markdownReport, 
-                quantData != null ? ingestionService.getRawDocument(date, "QUANT").map(RawDocumentEntity::getId).orElse(null) : null,
-                marketData != null ? ingestionService.getRawDocument(date, "MACRO").map(RawDocumentEntity::getId).orElse(null) : null
-            );
-            reportRepository.save(reportEntity);
-            result.put("report_generated", true);
+                if (quantData == null && marketData == null) {
+                    throw new RuntimeException("No data available to process for date: " + date);
+                }
 
-            // STEP 3.1: Persist Structured Intelligence (Now that Report exists)
-            if (quantData != null && quantData.extracted_levels() != null) {
-                quantData.extracted_levels().forEach(level -> {
-                    if (level.numeric_values() != null && !level.numeric_values().isEmpty()) {
-                        java.math.BigDecimal value = java.math.BigDecimal.valueOf(level.numeric_values().get(0));
-                        com.tearsdeepmind.entity.QuantSnapshotEntity snapshot = new com.tearsdeepmind.entity.QuantSnapshotEntity(
-                            date, 
-                            level.type() != null ? level.type().toUpperCase() : "LEVEL",
-                            value,
-                            null
-                        );
-                        quantSnapshotRepository.save(snapshot);
-                    }
-                });
-                logger.info("Saved structured snapshots linked to report {}", date);
-            }
+                // STEP 3: Synthesis (BD Analysis -> BD Reports)
+                String marketReality = getTechnicalContextAsString(date);
+                String auditVerdict = getAuditVerdictAsString(date.minusDays(1));
 
-            if (marketData != null && marketData.structured_prediction() != null) {
-                java.util.Map<String, Object> payload = new java.util.HashMap<>();
-                payload.put("direction", marketData.structured_prediction().direction());
-                payload.put("volatility", marketData.structured_prediction().volatility());
-                payload.put("primary_target", marketData.structured_prediction().primary_target());
-
-                com.tearsdeepmind.entity.PredictionEntity prediction = new com.tearsdeepmind.entity.PredictionEntity(
+                markdownReport = tearsAgentService.generateFinalReport(date, quantData, marketData, marketReality, auditVerdict);
+                
+                ReportEntity reportEntity = new ReportEntity(
                     date, 
-                    date, 
-                    payload
+                    markdownReport, 
+                    quantData != null ? ingestionService.getRawDocument(date, "QUANT").map(RawDocumentEntity::getId).orElse(null) : null,
+                    marketData != null ? ingestionService.getRawDocument(date, "MACRO").map(RawDocumentEntity::getId).orElse(null) : null
                 );
-                predictionRepository.save(prediction);
-                logger.info("Saved structured prediction linked to report {}", date);
+                reportRepository.save(reportEntity);
+                result.put("report_generated", true);
+
+                // STEP 3.1: Persist Structured Intelligence
+                if (quantData != null && quantData.extracted_levels() != null) {
+                    quantData.extracted_levels().forEach(level -> {
+                        if (level.numeric_values() != null && !level.numeric_values().isEmpty()) {
+                            java.math.BigDecimal value = java.math.BigDecimal.valueOf(level.numeric_values().get(0));
+                            com.tearsdeepmind.entity.QuantSnapshotEntity snapshot = new com.tearsdeepmind.entity.QuantSnapshotEntity(
+                                date, 
+                                level.type() != null ? level.type().toUpperCase() : "LEVEL",
+                                value,
+                                null
+                            );
+                            quantSnapshotRepository.save(snapshot);
+                        }
+                    });
+                    logger.info("Saved structured snapshots linked to report {}", date);
+                }
+
+                if (marketData != null && marketData.structured_prediction() != null) {
+                    java.util.Map<String, Object> payload = new java.util.HashMap<>();
+                    payload.put("direction", marketData.structured_prediction().direction());
+                    payload.put("volatility", marketData.structured_prediction().volatility());
+                    payload.put("primary_target", marketData.structured_prediction().primary_target());
+
+                    com.tearsdeepmind.entity.PredictionEntity prediction = new com.tearsdeepmind.entity.PredictionEntity(
+                        date, 
+                        date, 
+                        payload
+                    );
+                    predictionRepository.save(prediction);
+                    logger.info("Saved structured prediction linked to report {}", date);
+                }
             }
 
-            // STEP 4: Distribution
+            // STEP 4: Distribution (Runs for both new and existing reports)
             try {
-                // Refactor EmailService slightly to take just the Markdown and Date/Bias if possible
-                // For now, we adapt to what we have or fix it next
                 emailService.sendReport(date, markdownReport, marketData);
                 result.put("notification_sent", true);
             } catch (Exception e) {

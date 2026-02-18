@@ -65,7 +65,44 @@ public class TearsAgentService {
             String promptTemplate = StreamUtils.copyToString(macroPromptResource.getInputStream(), StandardCharsets.UTF_8);
             String fullPrompt = promptTemplate.replace("{raw_macro_data}", rawText);
             String jsonResponse = callGemini(fullPrompt, "macro_extraction");
-            return objectMapper.readValue(jsonResponse, MarketMemoryRecord.class);
+            
+            // Robust parsing logic
+            JsonNode root = objectMapper.readTree(jsonResponse);
+            
+            // Extract simple fields
+            String dateStr = root.path("date").asText("").trim();
+            LocalDate date = null;
+            try {
+                if (!dateStr.isEmpty()) {
+                    date = LocalDate.parse(dateStr);
+                }
+            } catch (Exception e) {
+                logger.warn("Could not parse date '{}' from Gemini response, using null", dateStr);
+            }
+            String sourceTitle = root.path("source_title").asText("");
+            
+            // Extract complex objects safely
+            MarketMemoryRecord.SentimentProfile sentiment = objectMapper.treeToValue(root.path("sentiment_profile"), MarketMemoryRecord.SentimentProfile.class);
+            MarketMemoryRecord.Drivers drivers = objectMapper.treeToValue(root.path("drivers"), MarketMemoryRecord.Drivers.class);
+            MarketMemoryRecord.DailyThesis thesis = objectMapper.treeToValue(root.path("daily_thesis"), MarketMemoryRecord.DailyThesis.class);
+            MarketMemoryRecord.NarrativeLevels levels = objectMapper.treeToValue(root.path("narrative_levels"), MarketMemoryRecord.NarrativeLevels.class);
+
+            // Manual parsing for StructuredPrediction to handle Doubles safely
+            JsonNode spNode = root.path("structured_prediction");
+            MarketMemoryRecord.StructuredPrediction prediction = null;
+            if (!spNode.isMissingNode()) {
+                String direction = spNode.path("direction").asText("FLAT");
+                String volatility = spNode.path("volatility").asText("STABLE");
+                
+                Double rangeTop = spNode.path("expected_range_top").isNumber() ? spNode.path("expected_range_top").asDouble() : null;
+                Double rangeBottom = spNode.path("expected_range_bottom").isNumber() ? spNode.path("expected_range_bottom").asDouble() : null;
+                Double target = spNode.path("primary_target").isNumber() ? spNode.path("primary_target").asDouble() : null;
+                
+                prediction = new MarketMemoryRecord.StructuredPrediction(direction, volatility, rangeTop, rangeBottom, target);
+            }
+
+            return new MarketMemoryRecord(date, sourceTitle, sentiment, prediction, drivers, thesis, levels);
+
         } catch (IOException e) {
             throw new RuntimeException("Error extracting macro intelligence", e);
         }

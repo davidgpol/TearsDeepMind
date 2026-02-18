@@ -148,6 +148,30 @@ public class CrawlerService {
 
     @Async
     public CompletableFuture<Void> extract(String seccion, int dias, String uuid, LocalDate targetDate) {
+        if (targetDate != null) {
+            try {
+                String dateFolder = targetDate.format(DateTimeFormatter.ofPattern("yyyyMMdd"));
+                Path localPath = Paths.get(outputDir, dateFolder, seccion);
+                
+                if (Files.exists(localPath)) {
+                    try (java.util.stream.Stream<Path> files = Files.list(localPath)) {
+                        Path cachedFile = files.filter(p -> p.toString().endsWith(".txt")).findFirst().orElse(null);
+                        
+                        if (cachedFile != null) {
+                            logger.info("[{}] FOUND LOCAL CACHE: {} -> Skipping web crawl.", uuid, cachedFile);
+                            String content = Files.readString(cachedFile);
+                            String docType = seccion.equalsIgnoreCase("DailyAnalysis") ? "MACRO" : "QUANT";
+                            ingestionService.saveRawDocument(targetDate, docType, content);
+                            return CompletableFuture.completedFuture(null);
+                        }
+                    }
+                }
+                logger.info("[{}] Local file not found for {}/{}. Proceeding to web crawl.", uuid, dateFolder, seccion);
+            } catch (Exception e) {
+                logger.warn("[{}] Cache check failed: {}", uuid, e.getMessage());
+            }
+        }
+
         if (email == null || email.isEmpty() || password == null || password.isEmpty()) {
             return CompletableFuture.completedFuture(null);
         }
