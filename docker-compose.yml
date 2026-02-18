@@ -18,6 +18,28 @@ services:
       timeout: 5s
       retries: 5
 
+  db-backup:
+    image: prodrigestivill/postgres-backup-local
+    restart: always
+    volumes:
+      - ../../Volumes/TearsMindBackups:/backups
+    depends_on:
+      tears-db:
+        condition: service_healthy
+    environment:
+      - POSTGRES_HOST=tears-db
+      - POSTGRES_DB=tearsmind
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=tearsmind_pwd
+      - POSTGRES_EXTRA_OPTS=-Z9 --schema=public --blobs
+      - SCHEDULE=@daily
+      - BACKUP_KEEP_DAYS=7
+      - BACKUP_KEEP_WEEKS=4
+      - BACKUP_KEEP_MONTHS=6
+      - HEALTHCHECK_PORT=8080
+    networks:
+      - tears-net
+
   tears-selenium:
     image: seleniarm/standalone-chromium:latest
     container_name: tears-selenium
