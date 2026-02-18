@@ -18,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -84,22 +85,27 @@ public class PipelineService {
         String statusLabel = isMarketActive && date.equals(nowNY.toLocalDate()) ? "[LIVE/INTRADAY]" : "[SESSION CLOSED]";
         String priceLabelTag = isMarketActive && date.equals(nowNY.toLocalDate()) ? "CURRENT PRICE" : "CLOSING PRICE";
 
-        dailyCandleRepository.findBySymbolAndDate("^GSPC", date).ifPresent(c -> {
-            sb.append(String.format("SPX %s:\n", statusLabel));
-            sb.append(String.format("   - %s: %.2f\n", priceLabelTag, c.getClose()));
-        });
-        dailyCandleRepository.findBySymbolAndDate("^VIX", date).ifPresent(c -> {
-            sb.append(String.format("VIX LAST: %.2f\n", c.getClose()));
+        List.of("^GSPC", "^VIX", "^TNX").forEach(symbol -> {
+            dailyCandleRepository.findBySymbolAndDate(symbol, date).ifPresent(c -> {
+                sb.append(String.format("[%s - %s]\n", symbol, statusLabel));
+                sb.append(String.format("   - %s: %.2f\n", priceLabelTag, c.getClose()));
+                
+                technicalIndicatorRepository.findBySymbolAndDate(symbol, date).ifPresent(ti -> {
+                    if (ti.getEma9d() != null) {
+                        String trend = c.getClose().compareTo(ti.getEma9d()) > 0 ? "ABOVE" : "BELOW";
+                        sb.append(String.format("   - Trend (EMA 9d): %s (%.2f)\n", trend, ti.getEma9d()));
+                    }
+                    if (symbol.equals("^GSPC") && ti.getSma50d() != null) {
+                        sb.append("   - SMA 50d: ").append(ti.getSma50d()).append("\n");
+                    }
+                    if (symbol.equals("^GSPC") && ti.getSma200d() != null) {
+                        sb.append("   - SMA 200d: ").append(ti.getSma200d()).append("\n");
+                    }
+                });
+            });
+            sb.append("\n");
         });
         
-        technicalIndicatorRepository.findBySymbolAndDate("^GSPC", date).ifPresent(ti -> {
-            sb.append("Technicals:\n");
-            if (ti.getEma9d() != null) sb.append("- EMA 9d: ").append(ti.getEma9d()).append("\n");
-            if (ti.getEma21d() != null) sb.append("- EMA 21d: ").append(ti.getEma21d()).append("\n");
-            if (ti.getSma50d() != null) sb.append("- SMA 50d: ").append(ti.getSma50d()).append("\n");
-            if (ti.getSma200d() != null) sb.append("- SMA 200d: ").append(ti.getSma200d()).append("\n");
-            if (ti.getEma21w() != null) sb.append("- EMA 21w (Macro): ").append(ti.getEma21w()).append("\n");
-        });
         return sb.length() > 0 ? sb.toString() : "No technical data available.";
     }
 
@@ -115,18 +121,24 @@ public class PipelineService {
         result.put("date", date);
         
         try {
-            // STEP 0: Market Data Sync & Audit
-            logger.info("Step 0: Syncing market data (1y range) and auditing performance for {}...", date);
+            // STEP 0: Market Data Sync & Indicators for all key symbols
+            List<String> symbols = List.of("^GSPC", "^VIX", "^TNX");
+            logger.info("Step 0: Syncing market data and indicators for symbols {}...", symbols);
             
-            // FIX: Use 1y range to ensure coverage for historical backfills
-            marketDataService.syncDailyData("^GSPC", "1y");
-            marketDataService.syncDailyData("^VIX", "1y");
+            for (String symbol : symbols) {
+                marketDataService.syncDailyData(symbol, "1y");
+                // For intraday, best effort only for the primary asset (SPX) for now to save bandwidth
+                if (symbol.equals("^GSPC")) {
+                    marketDataService.syncIntradayData(symbol, date);
+                }
+                
+                // Calculate technicals for the target date minus 1 (to have context for the session)
+                // and for the target date itself if it's already closed/available
+                technicalIndicatorService.calculateAndSaveIndicators(symbol, date.minusDays(1));
+                technicalIndicatorService.calculateAndSaveIndicators(symbol, date);
+            }
             
-            // Sync intraday (Best effort for past dates)
-            marketDataService.syncIntradayData("^GSPC", date);
-            
-            // Calculate technicals and perform audit for the PREVIOUS day
-            technicalIndicatorService.calculateAndSaveIndicators("^GSPC", date.minusDays(1));
+            // Performance audit for the PREVIOUS day
             auditService.auditDay(date.minusDays(1));
 
             // OPTIMIZATION: Check if report already exists
@@ -198,6 +210,8 @@ public class PipelineService {
                     payload.put("direction", marketData.structured_prediction().direction());
                     payload.put("volatility", marketData.structured_prediction().volatility());
                     payload.put("primary_target", marketData.structured_prediction().primary_target());
+                    payload.put("expected_range_top", marketData.structured_prediction().expected_range_top());
+                    payload.put("expected_range_bottom", marketData.structured_prediction().expected_range_bottom());
 
                     com.tearsdeepmind.entity.PredictionEntity prediction = new com.tearsdeepmind.entity.PredictionEntity(
                         date, 
@@ -205,7 +219,7 @@ public class PipelineService {
                         payload
                     );
                     predictionRepository.save(prediction);
-                    logger.info("Saved structured prediction linked to report {}", date);
+                    logger.info("Saved structured prediction with full range linked to report {}", date);
                 }
             }
 

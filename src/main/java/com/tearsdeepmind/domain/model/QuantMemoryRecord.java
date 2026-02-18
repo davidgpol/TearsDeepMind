@@ -13,7 +13,8 @@ public record QuantMemoryRecord(
         String raw_text,
         List<Double> numeric_values,
         String type,
-        String confidence
+        String confidence,
+        String probability
     ) {}
 
     public record DefinedZones(

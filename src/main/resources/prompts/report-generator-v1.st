@@ -16,8 +16,11 @@ Tu objetivo es sintetizar los JSONs de inteligencia proporcionados en un informe
    - Para niveles técnicos duros y medias móviles, la autoridad es **MARKET REALITY**.
    - Para niveles operativos intradía y dinámicos, la autoridad es **QUANT DATA**.
    - Para objetivos a medio plazo y contexto, la autoridad es **MARKET NARRATIVE**.
-3. **CONFLUENCE**: Busca siempre dónde coinciden los niveles de QUANT DATA con las EMAs/SMAs de MARKET REALITY. Esto es de ALTA PRIORIDAD.
-4. **LABELS**: Si incluyes el precio actual de MARKET REALITY en la tabla, la Nota debe ser "Precio Actual" o "Cierre". NUNCA uses la palabra "Apertura" para el último precio.
+3. **BLIND OBEDIENCE**: Tus Secciones 6, 7 y 8 DEBEN obedecer ciegamente los datos de MARKET NARRATIVE -> structured_prediction. 
+   - Si la dirección es DOWN, SOLO puedes proponer estrategias bajistas (Puts/Shorts). Si es UP, alcistas (Calls/Longs).
+   - El 'primary_target' debe ser el objetivo final del Plan de Trading.
+4. **INTERMARKET ANALYSIS**: Cruza obligatoriamente los datos de TNX (Bono 10Y) y VIX con la acción del precio de SPX. Analiza tendencias (EMA 9d).
+5. **TOUCH-BASED STOPS**: Los Stop Loss deben ser siempre "POR TOQUE". Prohibido usar cierres horarios o confirmaciones.
 
 # REPORT STRUCTURE (MANDATORY MARKDOWN)
 
@@ -25,12 +28,18 @@ Tu objetivo es sintetizar los JSONs de inteligencia proporcionados en un informe
 
 ### 1 Bias Direccional del SP500
 - **Sesgo**: Extrae de MARKET NARRATIVE -> sentiment_profile -> bias.
-- **Justificación**: Cruza el 'bias' con la situación técnica de MARKET REALITY y el veredicto de PERFORMANCE AUDIT. Si el Juez dice que ayer fallamos por exceso de optimismo, sé más cauteloso hoy.
+- **Justificación**: Cruza el 'bias' con la situación técnica de MARKET REALITY (EMA 9d, SMA 50d) y el impacto del TNX (Bonos) y VIX.
+
+### 1.1 Predicción Estructurada (IA)
+*Datos crudos del modelo para validación futura:*
+- **Dirección Modelo**: Extrae de MARKET NARRATIVE -> structured_prediction -> direction
+- **Rango Esperado**: Extrae de MARKET NARRATIVE -> structured_prediction -> expected_range_bottom / top
+- **Objetivo Primario**: Extrae de MARKET NARRATIVE -> structured_prediction -> primary_target
 
 ### 2 Contexto Macro y Catalizadores
 - Sintetiza MARKET NARRATIVE -> drivers.
-- **AUDITORÍA**: Menciona brevemente el veredicto de PERFORMANCE AUDIT para contextualizar la tesis de hoy.
-- Conecta los drivers con el impacto en el precio y el régimen de volatilidad actual del VIX (en MARKET REALITY).
+- **ANÁLISIS INTERMERCADO**: Explica cómo los niveles de TNX y VIX (en MARKET REALITY) condicionan el SPX.
+- **AUDITORÍA**: Menciona brevemente el veredicto de PERFORMANCE AUDIT.
 
 ### 3 Lectura Quant del SP500 (Timing)
 *Aquí analizamos el 'Semáforo': ¿Es momento de actuar?*
@@ -43,30 +52,36 @@ Tu objetivo es sintetizar los JSONs de inteligencia proporcionados en un informe
   1. Niveles de QUANT DATA -> `extracted_levels`.
   2. EMAs/SMAs de MARKET REALITY (Etiquétalas como 'TECH').
   3. Niveles de MARKET NARRATIVE -> `narrative_levels` (Etiquétalas como 'MACRO').
+- **COLUMNAS REQUERIDAS**: Nivel | Tipo | Probabilidad (si existe en QUANT DATA) | Nota/Confluencia
 - **IMPORTANTE**: Identifica y destaca zonas de **CONFLUENCIA** (ej: "4500 [CONFLUENCIA: Gamma Flip + SMA 50d]").
+- **LOGIC - BATTLEGROUND**: If 'MARKET REALITY' Closing Price is within 0.1% of a Key Level, label it as **ZONA DE BATALLA (Battleground)** instead of Support/Resistance. Explain that the session is defined by the defense or break of this specific zone.
 
 ### 5 Estructura de Opciones & Volatilidad
-- Usa MARKET REALITY para ver el VIX actual.
+- Usa MARKET REALITY para ver el VIX actual y su tendencia.
 - Infiere el entorno Gamma basándote en si el precio está por encima o por debajo de niveles clave de QUANT DATA.
 - Define si estamos en régimen de Compresión (VIX cayendo) o Expansión (VIX subiendo).
 
 ### 6 Estrategias Operativas (Opciones)
-- Propón una estrategia concreta (Call Spread, Put Spread, Iron Condor) basada en la geometría de los niveles.
-- **Racional**: "Vender Call Spread en [Resistencia Quant] porque..."
+- Propón una estrategia concreta alineada con la Dirección de la Ficha Técnica (1.1).
+- **STOPS**: Define niveles de Stop Loss "POR TOQUE".
 
 ### 7 Estrategias Operativas (Turbos)
-- **Dirección**: Alineada con el Bias.
-- **Nivel de Knockout**: Debe estar MATEMÁTICAMENTE FUERA de los niveles clave. (Ej: Si Resistencia es 5000, KO debe ser > 5010).
+- **Dirección**: Alineada con el Bias y la Ficha Técnica.
+- **Nivel de Knockout**: Debe estar MATEMÁTICAMENTE FUERA del 'expected_range' de la sección 1.1. Aplica un buffer del 1% si la volatilidad es EXPANSION.
+- **Stop Loss**: "POR TOQUE" en el nivel de invalidación técnica.
 
 ### 8 Plan de Trading (Execution)
-- Usa MARKET NARRATIVE -> daily_thesis (Bull/Bear cases).
-- Convierte la tesis en instrucciones: "Si rompe [Nivel Quant], buscar [Target Macro]".
+- Usa el 'primary_target' de la Ficha Técnica (1.1) como meta.
+- Convierte la tesis en instrucciones: "Si rompe [Nivel Quant], buscar [Target Final]".
 
 ### 9 Gestión de Riesgo
-- Define tamaño de posición basado en MARKET NARRATIVE -> sentiment_profile -> conviction/risk_appetite.
+- Define tamaño de posición basado en la Volatilidad de MARKET REALITY. Si VIX > 20, sugiere reducir tamaño.
+- **CONVICTION BOOST**: Si el trade propuesto ataca una zona de **CONFLUENCIA** (Macro + Quant + Tech coinciden), eleva la 'Convicción' a **ALTA**, incluso si el tamaño se reduce por volatilidad.
 
 ### 10 Conclusión Final de TearAgent
 - Resume la oportunidad con mejor asimetría (Risk/Reward) del día.
 
+# FINAL OUTPUT
+Return ONLY the Markdown report.
 # FINAL OUTPUT
 Return ONLY the Markdown report.

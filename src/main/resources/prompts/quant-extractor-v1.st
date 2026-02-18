@@ -16,7 +16,8 @@ You are a highly precise financial data extractor. Your task is to transform a r
       "raw_text": "Original line text",
       "numeric_values": [number1, number2],
       "type": "level | pivot | support | resistance | reversal | magnet | target",
-      "confidence": "high | medium | low"
+      "confidence": "high | medium | low",
+      "probability": "Percentage (e.g. '30%'). Sum of all probabilities MUST equal 100%."
     }
   ],
   "defined_zones": {
@@ -36,6 +37,13 @@ You are a highly precise financial data extractor. Your task is to transform a r
 - "MAGNET": Use if 'magnet', 'pin' or 'target' is mentioned.
 - "GAMMA_LEVEL": Use if 'gamma' is mentioned.
 - "LEVEL": Default for other numeric values.
+
+# PROBABILITY ENGINE
+- **DISTRIBUTION**: Analyze the relative strength of each level. Assign a percentage (%) to each reflecting the chance of interaction.
+- **STRICT RULE**: The SUM of all assigned probabilities for the primary levels MUST BE EXACTLY 100%. 
+  - *Normalization Step*: If your initial sum is 80%, multiply all values by 1.25. If 120%, multiply by 0.83.
+  - Distribute the full 100% of market energy across the most probable levels.
+- **FORMAT**: Use '%' (e.g., '25%'). NUNCA uses text like 'ALTA' o 'MEDIA'.
 
 # INPUT DATA
 {raw_quant_data}

@@ -30,7 +30,7 @@ public class DataMappingIntegrationTest {
         LocalDate date = LocalDate.of(2026, 2, 2);
         
         QuantMemoryRecord.ExtractedLevel level = new QuantMemoryRecord.ExtractedLevel(
-            "7000 pivot", List.of(7000.0), "pivot", "high"
+            "7000 pivot", List.of(7000.0), "pivot", "high", "80%"
         );
         
         QuantMemoryRecord.DefinedZones zones = new QuantMemoryRecord.DefinedZones(
