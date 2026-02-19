@@ -66,9 +66,13 @@ Tu objetivo es sintetizar los JSONs de inteligencia proporcionados en un informe
 - **STOPS**: Define niveles de Stop Loss "POR TOQUE".
 
 ### 7 Estrategias Operativas (Turbos)
-- **Dirección**: Alineada con el Bias y la Ficha Técnica.
-- **Nivel de Knockout**: Debe estar MATEMÁTICAMENTE FUERA del 'expected_range' de la sección 1.1. Aplica un buffer del 1% si la volatilidad es EXPANSION.
-- **Stop Loss**: "POR TOQUE" en el nivel de invalidación técnica.
+*Obediencia a Narrativa: {DIRECTION}*
+- **Dirección**: **LONG** / **SHORT**.
+- **KO (Nivel Knockout)**: **[CALCULAR AQUÍ]**.
+    - *Fórmula*: Top/Bottom del rango esperado + Buffer 1% por Volatilidad.
+- **Punto de Entrada**: **[NIVEL]**. (Definir si es ruptura o rechazo).
+- **Punto de Salida (Take Profit)**: **[NIVEL QUANT]**. (Siguiente nivel relevante).
+- **Stop Loss**: **POR TOQUE** en **[NIVEL INVALIDACIÓN]**.
 
 ### 8 Plan de Trading (Execution)
 - Usa el 'primary_target' de la Ficha Técnica (1.1) como meta.

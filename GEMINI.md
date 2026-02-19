@@ -45,10 +45,12 @@ El sistema garantiza que cada conclusión analítica pueda rastrearse hasta su f
 
 ---
 
-## 4. Estado Actual (V2.1)
-*   **Infraestructura:** Docker Compose (App, Postgres, Selenium Standalone).
-*   **Gestión de Cambios:** Flyway (V1-V5).
-*   **Observabilidad:** Logging estándar (Log4j2/Slf4j).
-*   **Resiliencia:** Manejo de errores en Pipeline, reintentos en Crawler.
+## 4. Estado Actual (V2.2 - Full Spectrum Intelligence)
+*   **Inteligencia Intermercado:** Sincronización nativa de **^VIX** (Volatilidad) y **^TNX** (Bono 10Y). El sistema cruza tendencias de precios con regímenes de volatilidad y tasas para definir el sesgo.
+*   **Motor de Probabilidad:** El análisis Quant normaliza matemáticamente las probabilidades de los niveles clave (Suma = 100%).
+*   **Rigor Operativo:** Los informes obedecen estrictamente a la predicción estructurada (Dirección/Objetivo) y usan Stops "Por Toque".
+*   **Infraestructura:** Docker Compose con Timeouts aumentados (5min) para soportar razonamiento profundo. Base de Datos reforzada (V8).
+*   **Gestión de Cambios:** Flyway (V1-V8).
+*   **Observabilidad:** Logging estándar.
 
 ---
