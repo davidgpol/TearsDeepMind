@@ -42,6 +42,7 @@ public class PipelineService {
     private final com.tearsdeepmind.repository.market.DailyCandleRepository dailyCandleRepository;
     private final PredictionRepository predictionRepository;
     private final QuantSnapshotRepository quantSnapshotRepository;
+    private final com.tearsdeepmind.service.market.VontobelScannerService vontobelScannerService;
 
     public PipelineService(CrawlerService crawlerService, 
                            TearsAgentService tearsAgentService, 
@@ -57,7 +58,8 @@ public class PipelineService {
                            com.tearsdeepmind.repository.market.AuditLogRepository auditLogRepository,
                            com.tearsdeepmind.repository.market.DailyCandleRepository dailyCandleRepository,
                            PredictionRepository predictionRepository,
-                           QuantSnapshotRepository quantSnapshotRepository) {
+                           QuantSnapshotRepository quantSnapshotRepository,
+                           com.tearsdeepmind.service.market.VontobelScannerService vontobelScannerService) {
         this.crawlerService = crawlerService;
         this.tearsAgentService = tearsAgentService;
         this.ingestionService = ingestionService;
@@ -73,6 +75,7 @@ public class PipelineService {
         this.dailyCandleRepository = dailyCandleRepository;
         this.predictionRepository = predictionRepository;
         this.quantSnapshotRepository = quantSnapshotRepository;
+        this.vontobelScannerService = vontobelScannerService;
     }
 
     private String getTechnicalContextAsString(LocalDate date) {
@@ -173,11 +176,67 @@ public class PipelineService {
                     throw new RuntimeException("No data available to process for date: " + date);
                 }
 
+                // STEP 2.5: Turbo Strategy Selection
+                String turboStrategyBlock = "### 7 Estrategias Operativas (Turbos)\n*No se pudo generar estrategia automática.*";
+                
+                if (marketData != null && marketData.structured_prediction() != null) {
+                    try {
+                        String direction = marketData.structured_prediction().direction();
+                        logger.info("Turbo Strategy: Prediction Direction is {}", direction);
+                        
+                        // Get current spot price
+                        Double currentSpot = dailyCandleRepository.findBySymbolAndDate("^GSPC", date)
+                                .map(c -> c.getClose().doubleValue())
+                                .orElse(null);
+                        
+                        logger.info("Turbo Strategy: Current Spot for {} is {}", date, currentSpot);
+                                
+                        if (currentSpot != null && ("UP".equalsIgnoreCase(direction) || "DOWN".equalsIgnoreCase(direction))) {
+                            Double stopLossLevel = "UP".equalsIgnoreCase(direction) 
+                                    ? marketData.structured_prediction().expected_range_bottom() 
+                                    : marketData.structured_prediction().expected_range_top();
+                            
+                            Double targetLevel = marketData.structured_prediction().primary_target();
+                            
+                            if (stopLossLevel == null || stopLossLevel == 0.0) {
+                                stopLossLevel = "UP".equalsIgnoreCase(direction) ? currentSpot * 0.99 : currentSpot * 1.01;
+                            }
+                            
+                            logger.info("Turbo Strategy: Calculated Stop Loss: {}, Target: {}", stopLossLevel, targetLevel);
+                            
+                            // Safe Scan direction mapping
+                            String scanDirection = "UP".equalsIgnoreCase(direction) ? "LONG" : "SHORT";
+                            List<com.tearsdeepmind.domain.model.TurboProduct> products = vontobelScannerService.scan("^GSPC", scanDirection);
+                            
+                            logger.info("Turbo Strategy: Scanner returned {} products.", products.size());
+                            
+                            Double finalStop = stopLossLevel;
+                            com.tearsdeepmind.domain.model.TurboProduct bestTurbo = products.stream()
+                                .filter(p -> isSafeKO(p, scanDirection, finalStop))
+                                .findFirst()
+                                .orElse(null);
+                                
+                            if (bestTurbo != null) {
+                                logger.info("Turbo Strategy: Selected Best Turbo: {}", bestTurbo.isin());
+                                turboStrategyBlock = buildTurboStrategyBlock(bestTurbo, currentSpot, targetLevel, stopLossLevel);
+                            } else {
+                                logger.warn("Turbo Strategy: No suitable turbo found after filtering.");
+                            }
+                        } else {
+                            logger.warn("Turbo Strategy: Missing spot price or invalid direction.");
+                        }
+                    } catch (Exception e) {
+                        logger.error("Failed to generate turbo strategy", e);
+                    }
+                } else {
+                    logger.warn("Turbo Strategy: Market Data or Structured Prediction missing.");
+                }
+
                 // STEP 3: Synthesis (BD Analysis -> BD Reports)
                 String marketReality = getTechnicalContextAsString(date);
                 String auditVerdict = getAuditVerdictAsString(date.minusDays(1));
 
-                markdownReport = tearsAgentService.generateFinalReport(date, quantData, marketData, marketReality, auditVerdict);
+                markdownReport = tearsAgentService.generateFinalReport(date, quantData, marketData, marketReality, auditVerdict, turboStrategyBlock);
                 
                 ReportEntity reportEntity = new ReportEntity(
                     date, 
@@ -273,5 +332,65 @@ public class PipelineService {
             dailyAnalysisRepository.save(new DailyAnalysisEntity(date, record, doc.getId(), "v1", "gemini-2.0-flash"));
             return record;
         });
+    }
+
+    private boolean isSafeKO(com.tearsdeepmind.domain.model.TurboProduct p, String direction, Double stopLoss) {
+        if (p.barrier() == null) return false;
+        double ko = p.barrier().doubleValue();
+        // Buffer safety: KO must be further than Stop Loss by at least 5 points
+        return "LONG".equalsIgnoreCase(direction) ? ko < (stopLoss - 5) : ko > (stopLoss + 5);
+    }
+
+    private String buildTurboStrategyBlock(com.tearsdeepmind.domain.model.TurboProduct p, Double entrySpx, Double targetSpx, Double stopSpx) {
+        double ratio = p.ratio() != null ? p.ratio().doubleValue() : 0.01;
+        double strike = p.strike().doubleValue();
+        boolean isLong = "LONG".equalsIgnoreCase(p.direction());
+
+        // Pricing Engine
+        double entryPrice = Math.max(0.01, isLong ? (entrySpx - strike) * ratio : (strike - entrySpx) * ratio);
+        double targetPrice = Math.max(0.01, isLong ? (targetSpx - strike) * ratio : (strike - targetSpx) * ratio);
+        double stopPrice = Math.max(0.01, isLong ? (stopSpx - strike) * ratio : (strike - stopSpx) * ratio);
+
+        // Time Engine (Simplified V1 - Until ATR is ready)
+        // Using static estimation for now as requested by user plan (Technical Engine is Phase 2)
+        String duration = "~2h 15m"; 
+        String exitTime = java.time.ZonedDateTime.now(java.time.ZoneId.of("Europe/Madrid")).plusHours(2).plusMinutes(15).format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"));
+
+        return String.format("""
+### 7 Estrategias Operativas (Turbos)
+*Obediencia a Narrativa: %s*
+
+**🚀 Selección Inteligente (IA + Scanner Vontobel)**
+
+| Parámetro | Valor | Notas Tácticas |
+| :--- | :--- | :--- |
+| **Producto** | **Turbo %s SPX** | ISIN: **%s** |
+| **KO (Barrera)** | **%.2f** | Riesgo de liquidación total. |
+| **Apalancamiento** | **%.1fx** | Riesgo Alto. |
+
+**Plan de Ejecución (Precios Teóricos)**
+
+1.  **Entrada (Trigger)**:
+    *   **SPX Nivel:** **%.2f**
+    *   **Turbo Precio:** **~%.2f€**
+
+2.  **Salida (Take Profit)**:
+    *   **SPX Nivel:** **%.2f**
+    *   **Turbo Precio:** **~%.2f€**
+
+3.  **Stop Loss (Emergencia)**:
+    *   **SPX Nivel:** **%.2f**
+    *   **Turbo Precio:** **~%.2f€**
+
+**⏱️ Gestión Temporal (Time-Stop Madrid)**
+*   **Duración Estimada**: **%s**.
+*   **Hora Límite**: **%s CET**.
+*   **Instrucción**: Si a las %s no se alcanza el objetivo (**%.2f€**), CERRAR LA POSICIÓN a mercado.
+""", 
+        p.direction(), p.direction(), p.isin(), p.barrier(), p.leverage(),
+        entrySpx, entryPrice,
+        targetSpx, targetPrice,
+        stopSpx, stopPrice,
+        duration, exitTime, exitTime, targetPrice);
     }
 }
