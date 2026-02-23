@@ -337,8 +337,8 @@ public class PipelineService {
     private boolean isSafeKO(com.tearsdeepmind.domain.model.TurboProduct p, String direction, Double stopLoss) {
         if (p.barrier() == null) return false;
         double ko = p.barrier().doubleValue();
-        // Buffer safety: KO must be further than Stop Loss by at least 5 points
-        return "LONG".equalsIgnoreCase(direction) ? ko < (stopLoss - 5) : ko > (stopLoss + 5);
+        // Buffer safety: KO must be further than Stop Loss by at least 10 points
+        return "LONG".equalsIgnoreCase(direction) ? ko < (stopLoss - 10) : ko > (stopLoss + 10);
     }
 
     private String buildTurboStrategyBlock(com.tearsdeepmind.domain.model.TurboProduct p, Double entrySpx, Double targetSpx, Double stopSpx) {
