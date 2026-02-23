@@ -39,6 +39,15 @@ public class TechnicalIndicatorEntity {
     @Column(name = "rsi_14d", precision = 10, scale = 2)
     private BigDecimal rsi14d;
 
+    @Column(name = "bb_upper", precision = 10, scale = 2)
+    private BigDecimal bbUpper;
+
+    @Column(name = "bb_lower", precision = 10, scale = 2)
+    private BigDecimal bbLower;
+
+    @Column(name = "bb_width", precision = 10, scale = 4)
+    private BigDecimal bbWidth;
+
     @Column(name = "created_at")
     private LocalDateTime createdAt = LocalDateTime.now();
 
@@ -64,4 +73,10 @@ public class TechnicalIndicatorEntity {
     public void setAtr14d(BigDecimal atr14d) { this.atr14d = atr14d; }
     public BigDecimal getRsi14d() { return rsi14d; }
     public void setRsi14d(BigDecimal rsi14d) { this.rsi14d = rsi14d; }
+    public BigDecimal getBbUpper() { return bbUpper; }
+    public void setBbUpper(BigDecimal bbUpper) { this.bbUpper = bbUpper; }
+    public BigDecimal getBbLower() { return bbLower; }
+    public void setBbLower(BigDecimal bbLower) { this.bbLower = bbLower; }
+    public BigDecimal getBbWidth() { return bbWidth; }
+    public void setBbWidth(BigDecimal bbWidth) { this.bbWidth = bbWidth; }
 }

@@ -26,17 +26,20 @@ public class MarketDataController {
     private final AuditService auditService;
     private final TechnicalIndicatorRepository technicalIndicatorRepository;
     private final AuditLogRepository auditLogRepository;
+    private final com.tearsdeepmind.repository.market.DailyCandleRepository dailyCandleRepository;
 
     public MarketDataController(MarketDataService marketDataService,
                                 TechnicalIndicatorService technicalIndicatorService,
                                 AuditService auditService,
                                 TechnicalIndicatorRepository technicalIndicatorRepository,
-                                AuditLogRepository auditLogRepository) {
+                                AuditLogRepository auditLogRepository,
+                                com.tearsdeepmind.repository.market.DailyCandleRepository dailyCandleRepository) {
         this.marketDataService = marketDataService;
         this.technicalIndicatorService = technicalIndicatorService;
         this.auditService = auditService;
         this.technicalIndicatorRepository = technicalIndicatorRepository;
         this.auditLogRepository = auditLogRepository;
+        this.dailyCandleRepository = dailyCandleRepository;
     }
 
     @PostMapping("/sync")
@@ -53,6 +56,21 @@ public class MarketDataController {
     public ResponseEntity<String> backfill(@RequestParam String symbol, @RequestParam(defaultValue = "1y") String range) {
         marketDataService.syncHistoryWithRetry(symbol, range);
         return ResponseEntity.ok("Backfill triggered for " + symbol + " with range: " + range);
+    }
+
+    @PostMapping("/recalculate-indicators")
+    @Operation(summary = "Recalculate All Technical Indicators", description = "Iterates over all daily candles and repopulates the indicators table (ATR, RSI, Bollinger, etc.)")
+    public ResponseEntity<String> recalculateIndicators() {
+        // Run in background for safety
+        Thread.ofVirtual().start(() -> {
+            java.util.List<String> symbols = java.util.List.of("^GSPC", "^VIX", "^TNX");
+            for (String symbol : symbols) {
+                dailyCandleRepository.findBySymbolOrderByDateDesc(symbol).forEach(candle -> {
+                    technicalIndicatorService.calculateAndSaveIndicators(symbol, candle.getDate());
+                });
+            }
+        });
+        return ResponseEntity.ok("Indicator recalculation started in the background for all symbols.");
     }
 
     @PostMapping("/audit/{date}")

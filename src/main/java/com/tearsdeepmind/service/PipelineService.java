@@ -351,10 +351,74 @@ public class PipelineService {
         double targetPrice = Math.max(0.01, isLong ? (targetSpx - strike) * ratio : (strike - targetSpx) * ratio);
         double stopPrice = Math.max(0.01, isLong ? (stopSpx - strike) * ratio : (strike - stopSpx) * ratio);
 
-        // Time Engine (Simplified V1 - Until ATR is ready)
-        // Using static estimation for now as requested by user plan (Technical Engine is Phase 2)
-        String duration = "~2h 15m"; 
-        String exitTime = java.time.ZonedDateTime.now(java.time.ZoneId.of("Europe/Madrid")).plusHours(2).plusMinutes(15).format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"));
+        // Time Engine (Dynamic 4-Factor Model)
+        String durationStr = "~2h 00m (Estándar)";
+        java.time.LocalTime exitTimeVal = java.time.LocalTime.of(17, 30); // Default fallback
+        
+        try {
+            LocalDate yesterday = LocalDate.now().minusDays(1);
+            // Fetch indicators
+            com.tearsdeepmind.entity.market.TechnicalIndicatorEntity spxTech = technicalIndicatorRepository.findBySymbolAndDate("^GSPC", yesterday).orElse(null);
+            com.tearsdeepmind.entity.market.TechnicalIndicatorEntity vixTech = technicalIndicatorRepository.findBySymbolAndDate("^VIX", yesterday).orElse(null);
+            
+            // Need today's VIX for current acceleration
+            Double currentVix = dailyCandleRepository.findBySymbolAndDate("^VIX", LocalDate.now())
+                    .map(c -> c.getClose().doubleValue())
+                    .orElse(vixTech != null && vixTech.getEma9d() != null ? vixTech.getEma9d().doubleValue() : 20.0);
+
+            if (spxTech != null && spxTech.getAtr14d() != null) {
+                double distance = Math.abs(targetSpx - entrySpx);
+                double atr = spxTech.getAtr14d().doubleValue();
+                
+                // 1. Base Speed (Points per Hour)
+                double speedBase = atr / 6.5; 
+                double baseHours = distance / speedBase;
+
+                // 2. VIX Factor (Acceleration)
+                double vixMean = vixTech != null && vixTech.getEma21d() != null ? vixTech.getEma21d().doubleValue() : 18.0;
+                double factorVix = vixMean / currentVix; // Higher VIX -> Lower Factor -> Lower Time (Faster)
+
+                // 3. RSI Factor (Fatigue)
+                double rsi = spxTech.getRsi14d() != null ? spxTech.getRsi14d().doubleValue() : 50.0;
+                double factorRsi = 1.0;
+                if ((isLong && rsi > 70) || (!isLong && rsi < 30)) {
+                    factorRsi = 1.2; // 20% slower fighting momentum
+                }
+
+                // 4. Bollinger Factor (Explosion)
+                double bbWidth = spxTech.getBbWidth() != null ? spxTech.getBbWidth().doubleValue() : 0.1;
+                double factorBb = 1.0;
+                if (bbWidth < 0.05) {
+                    factorBb = 0.8; // 20% faster due to squeeze
+                }
+
+                double estimatedHours = baseHours * factorVix * factorRsi * factorBb * 1.5; // 1.5 Safety Margin
+                
+                long hours = (long) estimatedHours;
+                long minutes = (long) ((estimatedHours - hours) * 60);
+                durationStr = String.format("~%dh %dm", hours, minutes);
+                
+                // Calculate Exit Time (Madrid)
+                // Assuming entry is NOW or US Open (15:30 CET)
+                java.time.ZonedDateTime nowMadrid = java.time.ZonedDateTime.now(java.time.ZoneId.of("Europe/Madrid"));
+                java.time.ZonedDateTime openMadrid = nowMadrid.withHour(15).withMinute(30);
+                java.time.ZonedDateTime baseTime = nowMadrid.isAfter(openMadrid) ? nowMadrid : openMadrid;
+                
+                java.time.ZonedDateTime exitZdt = baseTime.plusMinutes((long)(estimatedHours * 60));
+                exitTimeVal = exitZdt.toLocalTime();
+            }
+        } catch (Exception e) {
+            logger.warn("Time Engine failed, using fallback.", e);
+        }
+        
+        String exitTimeStr = exitTimeVal.format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"));
+
+        // Entry Time Logic (Madrid)
+        String entryTimeStr = "15:30 CET"; // Default
+        java.time.ZonedDateTime now = java.time.ZonedDateTime.now(java.time.ZoneId.of("Europe/Madrid"));
+        if (now.getHour() > 15 || (now.getHour() == 15 && now.getMinute() > 30)) {
+            entryTimeStr = "INMEDIATA (" + now.format(java.time.format.DateTimeFormatter.ofPattern("HH:mm")) + " CET)";
+        }
 
         return String.format("""
 ### 7 Estrategias Operativas (Turbos)
@@ -383,7 +447,8 @@ public class PipelineService {
     *   **Turbo Precio:** **~%.2f€**
 
 **⏱️ Gestión Temporal (Time-Stop Madrid)**
-*   **Duración Estimada**: **%s**.
+*   **Momento de Entrada**: **%s**.
+*   **Duración Estimada**: **%s** (Calculado por ATR/VIX/RSI/BB).
 *   **Hora Límite**: **%s CET**.
 *   **Instrucción**: Si a las %s no se alcanza el objetivo (**%.2f€**), CERRAR LA POSICIÓN a mercado.
 """, 
@@ -391,6 +456,6 @@ public class PipelineService {
         entrySpx, entryPrice,
         targetSpx, targetPrice,
         stopSpx, stopPrice,
-        duration, exitTime, exitTime, targetPrice);
+        entryTimeStr, durationStr, exitTimeStr, exitTimeStr, targetPrice);
     }
 }
