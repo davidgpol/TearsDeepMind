@@ -60,10 +60,13 @@ public class TearsAgentService {
         }
     }
 
-    public MarketMemoryRecord extractMacroIntelligence(String rawText) {
+    public MarketMemoryRecord extractMacroIntelligence(String rawText, String technicalContext) {
         try {
             String promptTemplate = StreamUtils.copyToString(macroPromptResource.getInputStream(), StandardCharsets.UTF_8);
-            String fullPrompt = promptTemplate.replace("{raw_macro_data}", rawText);
+            String fullPrompt = promptTemplate
+                    .replace("{raw_macro_data}", rawText)
+                    .replace("{technical_context}", technicalContext != null ? technicalContext : "No technical data available.");
+            
             String jsonResponse = callGemini(fullPrompt, "macro_extraction");
             
             // Robust parsing logic

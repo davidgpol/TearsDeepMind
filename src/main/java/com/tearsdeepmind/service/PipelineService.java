@@ -98,11 +98,30 @@ public class PipelineService {
                         String trend = c.getClose().compareTo(ti.getEma9d()) > 0 ? "ABOVE" : "BELOW";
                         sb.append(String.format("   - Trend (EMA 9d): %s (%.2f)\n", trend, ti.getEma9d()));
                     }
-                    if (symbol.equals("^GSPC") && ti.getSma50d() != null) {
-                        sb.append("   - SMA 50d: ").append(ti.getSma50d()).append("\n");
+                    
+                    if (symbol.equals("^GSPC")) {
+                        if (ti.getSma50d() != null) sb.append("   - SMA 50d: ").append(ti.getSma50d()).append("\n");
+                        if (ti.getSma200d() != null) sb.append("   - SMA 200d: ").append(ti.getSma200d()).append("\n");
+                        
+                        // New Advanced Intelligence
+                        if (ti.getAtr14d() != null) {
+                            sb.append(String.format("   - ATR (14d): %.2f (Daily Range Speed)\n", ti.getAtr14d()));
+                        }
+                        if (ti.getRsi14d() != null) {
+                            String rsiLabel = ti.getRsi14d().doubleValue() > 70 ? "OVERBOUGHT" : ti.getRsi14d().doubleValue() < 30 ? "OVERSOLD" : "NEUTRAL";
+                            sb.append(String.format("   - RSI (14d): %.2f (%s)\n", ti.getRsi14d(), rsiLabel));
+                        }
+                        if (ti.getBbWidth() != null) {
+                            String squeeze = ti.getBbWidth().doubleValue() < 0.05 ? "CRITICAL SQUEEZE (Explosion Imminent)" : "NORMAL";
+                            sb.append(String.format("   - Bollinger Width: %.2f%% (%s)\n", ti.getBbWidth().doubleValue() * 100, squeeze));
+                        }
                     }
-                    if (symbol.equals("^GSPC") && ti.getSma200d() != null) {
-                        sb.append("   - SMA 200d: ").append(ti.getSma200d()).append("\n");
+                    
+                    if (symbol.equals("^VIX")) {
+                        if (ti.getEma21d() != null) {
+                            String vixRel = c.getClose().compareTo(ti.getEma21d()) > 0 ? "ABOVE MEAN (Anxiety)" : "BELOW MEAN (Complacency)";
+                            sb.append(String.format("   - VIX Context: %s (Mean: %.2f)\n", vixRel, ti.getEma21d()));
+                        }
                     }
                 });
             });
@@ -191,39 +210,81 @@ public class PipelineService {
                         
                         logger.info("Turbo Strategy: Current Spot for {} is {}", date, currentSpot);
                                 
-                        if (currentSpot != null && ("UP".equalsIgnoreCase(direction) || "DOWN".equalsIgnoreCase(direction))) {
-                            Double stopLossLevel = "UP".equalsIgnoreCase(direction) 
-                                    ? marketData.structured_prediction().expected_range_bottom() 
-                                    : marketData.structured_prediction().expected_range_top();
-                            
-                            Double targetLevel = marketData.structured_prediction().primary_target();
-                            
-                            if (stopLossLevel == null || stopLossLevel == 0.0) {
-                                stopLossLevel = "UP".equalsIgnoreCase(direction) ? currentSpot * 0.99 : currentSpot * 1.01;
-                            }
-                            
-                            logger.info("Turbo Strategy: Calculated Stop Loss: {}, Target: {}", stopLossLevel, targetLevel);
-                            
-                            // Safe Scan direction mapping
-                            String scanDirection = "UP".equalsIgnoreCase(direction) ? "LONG" : "SHORT";
-                            List<com.tearsdeepmind.domain.model.TurboProduct> products = vontobelScannerService.scan("^GSPC", scanDirection);
-                            
-                            logger.info("Turbo Strategy: Scanner returned {} products.", products.size());
-                            
-                            Double finalStop = stopLossLevel;
-                            com.tearsdeepmind.domain.model.TurboProduct bestTurbo = products.stream()
-                                .filter(p -> isSafeKO(p, scanDirection, finalStop))
-                                .findFirst()
-                                .orElse(null);
+                        if (currentSpot != null) {
+                            Double stopLossLevel = 0.0;
+                            Double targetLevel = 0.0;
+                            String scanDirection = "";
+                            int safetyBuffer = 10;
+                            boolean isNeutralStrategy = false;
+
+                            if ("UP".equalsIgnoreCase(direction)) {
+                                stopLossLevel = marketData.structured_prediction().expected_range_bottom();
+                                targetLevel = marketData.structured_prediction().primary_target();
+                                scanDirection = "LONG";
+                            } else if ("DOWN".equalsIgnoreCase(direction)) {
+                                stopLossLevel = marketData.structured_prediction().expected_range_top();
+                                targetLevel = marketData.structured_prediction().primary_target();
+                                scanDirection = "SHORT";
+                            } else if ("FLAT".equalsIgnoreCase(direction)) {
+                                // NEUTRAL STRATEGY: Mean Reversion
+                                Double high = marketData.structured_prediction().expected_range_top();
+                                Double low = marketData.structured_prediction().expected_range_bottom();
                                 
-                            if (bestTurbo != null) {
-                                logger.info("Turbo Strategy: Selected Best Turbo: {}", bestTurbo.isin());
-                                turboStrategyBlock = buildTurboStrategyBlock(bestTurbo, currentSpot, targetLevel, stopLossLevel);
-                            } else {
-                                logger.warn("Turbo Strategy: No suitable turbo found after filtering.");
+                                // Range Sanitizer: Fix invalid 0.0 bounds using synthetic volatility (1.5% approx 100pts)
+                                double syntheticBuffer = currentSpot * 0.015;
+                                if (high == null || high < currentSpot) high = currentSpot + syntheticBuffer;
+                                if (low == null || low < 1.0) low = currentSpot - syntheticBuffer;
+                                
+                                logger.info("Turbo Strategy: Sanitized Range for FLAT mode: {} - {}", low, high);
+
+                                Double mid = (high + low) / 2.0;
+                                isNeutralStrategy = true;
+                                safetyBuffer = 25; // Extra safety for range trading
+                                
+                                if (currentSpot > mid) {
+                                    // Top of range -> Short towards mid
+                                    scanDirection = "SHORT";
+                                    targetLevel = mid;
+                                    stopLossLevel = high + 5;
+                                } else {
+                                    // Bottom of range -> Long towards mid
+                                    scanDirection = "LONG";
+                                    targetLevel = mid;
+                                    stopLossLevel = low - 5;
+                                }
                             }
-                        } else {
-                            logger.warn("Turbo Strategy: Missing spot price or invalid direction.");
+
+                            if (!scanDirection.isEmpty()) {
+                                if (stopLossLevel == null || stopLossLevel == 0.0) {
+                                    stopLossLevel = "LONG".equalsIgnoreCase(scanDirection) ? currentSpot * 0.99 : currentSpot * 1.01;
+                                }
+                                
+                                logger.info("Turbo Strategy: Context [{}]. Stop: {}, Target: {}, Buffer: {}", direction, stopLossLevel, targetLevel, safetyBuffer);
+                                
+                                List<com.tearsdeepmind.domain.model.TurboProduct> products = vontobelScannerService.scan("^GSPC", scanDirection);
+                                Double finalStop = stopLossLevel;
+                                int finalBuffer = safetyBuffer;
+                                String finalScanDir = scanDirection;
+
+                                com.tearsdeepmind.domain.model.TurboProduct bestTurbo = products.stream()
+                                    .filter(p -> {
+                                        if (p.barrier() == null) return false;
+                                        double ko = p.barrier().doubleValue();
+                                        return "LONG".equalsIgnoreCase(finalScanDir) ? ko < (finalStop - finalBuffer) : ko > (finalStop + finalBuffer);
+                                    })
+                                    .findFirst()
+                                    .orElse(null);
+                                    
+                                if (bestTurbo != null) {
+                                    turboStrategyBlock = buildTurboStrategyBlock(bestTurbo, currentSpot, targetLevel, stopLossLevel);
+                                    if (isNeutralStrategy) {
+                                        turboStrategyBlock = "⚠️ **ADVERTENCIA DE RANGO / RIESGO ELEVADO**\n" +
+                                            "El mercado se encuentra en fase **NEUTRAL**. Esta estrategia busca una **Reversión a la Media**, operando contra el extremo del rango actual.\n" +
+                                            "* **Riesgo:** Alta probabilidad de latigazos (whipsaw).\n" +
+                                            "* **Gestión:** Cierre si el precio rompe el extremo opuesto del rango.\n\n" + turboStrategyBlock;
+                                    }
+                                }
+                            }
                         }
                     } catch (Exception e) {
                         logger.error("Failed to generate turbo strategy", e);
@@ -328,7 +389,8 @@ public class PipelineService {
 
     private Optional<MarketMemoryRecord> processMacro(LocalDate date) {
         return ingestionService.getRawDocument(date, "MACRO").map(doc -> {
-            MarketMemoryRecord record = tearsAgentService.extractMacroIntelligence(doc.getContent());
+            String technicalContext = getTechnicalContextAsString(date);
+            MarketMemoryRecord record = tearsAgentService.extractMacroIntelligence(doc.getContent(), technicalContext);
             dailyAnalysisRepository.save(new DailyAnalysisEntity(date, record, doc.getId(), "v1", "gemini-2.0-flash"));
             return record;
         });

@@ -38,11 +38,12 @@ public class VontobelScannerService {
         String directionVal = "LONG".equalsIgnoreCase(direction) ? "1" : "2";
 
         try {
-            logger.info("Scanning Vontobel for {} {}...", underlyingSymbol, direction);
+            logger.info("Scanning Vontobel (TR Only) for {} {}...", underlyingSymbol, direction);
             
             Document doc = Jsoup.connect(BASE_URL)
                     .data("underlying", underlyingId)
                     .data("direction", directionVal)
+                    .data("platforms", "1") // 1 = Trade Republic / LS Exchange
                     .header("Accept-Language", "de-DE,de;q=0.9,en-US;q=0.8,en;q=0.7")
                     .userAgent(USER_AGENT)
                     .timeout(10000)
@@ -55,23 +56,71 @@ public class VontobelScannerService {
             }
 
             JsonNode root = objectMapper.readTree(script.html());
-            JsonNode items = root.path("props")
-                    .path("pageProps")
-                    .path("additionalData")
-                    .path("productSearchData")
-                    .path("items");
-
-            if (items.isMissingNode() || !items.isArray()) {
-                logger.warn("No items found in Vontobel response.");
+            
+            // Debug Path Traversal
+            JsonNode pageProps = root.path("props").path("pageProps");
+            if (pageProps.isMissingNode()) {
+                logger.error("Vontobel Debug: 'pageProps' missing. Available keys in root: {}", getKeys(root));
+                return List.of();
+            }
+            
+            JsonNode additionalData = pageProps.path("additionalData");
+            if (additionalData.isMissingNode()) {
+                logger.error("Vontobel Debug: 'additionalData' missing. Available keys in pageProps: {}", getKeys(pageProps));
+                return List.of();
+            }
+            
+            JsonNode productSearchData = additionalData.path("productSearchData");
+            if (productSearchData.isMissingNode()) {
+                logger.error("Vontobel Debug: 'productSearchData' missing. Available keys in additionalData: {}", getKeys(additionalData));
                 return List.of();
             }
 
+            JsonNode items = productSearchData.path("items");
+
+            if (items.isMissingNode() || !items.isArray()) {
+                logger.warn("Vontobel Debug: 'items' missing or not array. Available keys in productSearchData: {}", getKeys(productSearchData));
+                return List.of();
+            }
+            
+            logger.info("Vontobel Debug: Found {} items in JSON.", items.size());
+
             List<TurboProduct> products = new ArrayList<>();
             for (JsonNode item : items) {
-                TurboProduct product = mapToProduct(item, direction);
-                if (product != null) {
-                    products.add(product);
+                // STRICT FILTER (Python Logic Replication): 
+                // Only discard if the field explicitly exists and is false.
+                // If the field is missing, we trust the URL 'platforms=1' filter.
+                if (item.has("isTradeRepublic") && !item.path("isTradeRepublic").asBoolean()) {
+                    continue;
                 }
+
+                // Logic aligned with Python script
+                String isin = item.path("isin").asText(null);
+                if (isin == null) continue;
+
+                double leverageVal = item.path("leverage").asDouble(0.0);
+                if (leverageVal <= 0) continue;
+
+                BigDecimal leverage = BigDecimal.valueOf(leverageVal);
+                
+                // Price path logic
+                JsonNode priceNode = item.path("price");
+                BigDecimal bid = BigDecimal.valueOf(priceNode.path("bid").asDouble(0.0));
+                BigDecimal ask = BigDecimal.valueOf(priceNode.path("ask").asDouble(0.0));
+                BigDecimal ratio = BigDecimal.valueOf(item.path("ratio").asDouble(0.0));
+                
+                // Barrier/Strike logic
+                BigDecimal knockOut = BigDecimal.valueOf(item.path("knockOut").asDouble(0.0));
+                BigDecimal strike = BigDecimal.valueOf(item.path("strike").asDouble(0.0));
+                
+                // Fallback logic if strike is missing but KO exists (common in JSON)
+                if (strike.compareTo(BigDecimal.ZERO) == 0 && knockOut.compareTo(BigDecimal.ZERO) > 0) {
+                    strike = knockOut;
+                }
+                
+                // Use barrierDistance if needed for sorting, but we rely on leverage
+                TurboProduct product = new TurboProduct(isin, direction.toUpperCase(), strike, knockOut, leverage, bid, ask, ratio);
+                products.add(product);
             }
 
             // Sort by leverage descending (most aggressive first)
@@ -122,5 +171,13 @@ public class VontobelScannerService {
             case "NDX", "^NDX" -> "72";
             default -> null;
         };
+    }
+    
+    private List<String> getKeys(JsonNode node) {
+        List<String> keys = new ArrayList<>();
+        if (node != null && node.isObject()) {
+            node.fieldNames().forEachRemaining(keys::add);
+        }
+        return keys;
     }
 }

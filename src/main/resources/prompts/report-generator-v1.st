@@ -65,7 +65,11 @@ Tu objetivo es sintetizar los JSONs de inteligencia proporcionados en un informe
 - Propón una estrategia concreta alineada con la Dirección de la Ficha Técnica (1.1).
 - **STOPS**: Define niveles de Stop Loss "POR TOQUE".
 
+### 7 Estrategias Operativas (Turbos)
+**INSTRUCCIÓN CRÍTICA:** Copia y pega el siguiente bloque de texto EXACTAMENTE como está. NO lo resumas, NO lo reescribas, NO cambies los precios. Es una salida calculada por un motor externo preciso.
+>>> INICIO BLOQUE BLINDADO
 {turbo_strategy_block}
+>>> FIN BLOQUE BLINDADO
 
 ### 8 Plan de Trading (Execution)
 - Usa el 'primary_target' de la Ficha Técnica (1.1) como meta.
