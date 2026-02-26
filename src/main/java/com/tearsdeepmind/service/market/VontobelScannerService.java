@@ -46,7 +46,7 @@ public class VontobelScannerService {
                     .data("platforms", "1") // 1 = Trade Republic / LS Exchange
                     .header("Accept-Language", "de-DE,de;q=0.9,en-US;q=0.8,en;q=0.7")
                     .userAgent(USER_AGENT)
-                    .timeout(10000)
+                    .timeout(30000) // Increased timeout to 30 seconds for stability
                     .get();
 
             Element script = doc.selectFirst("script#__NEXT_DATA__");

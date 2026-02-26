@@ -203,10 +203,13 @@ public class PipelineService {
                         String direction = marketData.structured_prediction().direction();
                         logger.info("Turbo Strategy: Prediction Direction is {}", direction);
                         
-                        // Get current spot price
+                        // Get current spot price: Try exact date first, fallback to latest available
                         Double currentSpot = dailyCandleRepository.findBySymbolAndDate("^GSPC", date)
                                 .map(c -> c.getClose().doubleValue())
-                                .orElse(null);
+                                .orElseGet(() -> dailyCandleRepository.findBySymbolOrderByDateDesc("^GSPC")
+                                        .stream().findFirst()
+                                        .map(c -> c.getClose().doubleValue())
+                                        .orElse(null));
                         
                         logger.info("Turbo Strategy: Current Spot for {} is {}", date, currentSpot);
                                 
