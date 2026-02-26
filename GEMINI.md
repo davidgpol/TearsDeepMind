@@ -75,3 +75,26 @@ Esta actualización dota al sistema de capacidad de ejecución precisa mediante 
 *   **Time-Stop:** El informe incluye una **Hora Límite (Madrid)** para cerrar la posición si el objetivo no se alcanza, basada en la volatilidad real.
 
 ---
+
+## 6. Backtrack de Errores y Evolución del Modelo (Auditoría Feb 2026)
+
+Tras analizar los fallos de predicción de la IA durante la semana del 18-25 de Febrero, se han identificado dos patrones de error principales que guiarán la siguiente evolución del modelo.
+
+### A. Fallo del 19/02: "El Eco del Oso" (Predicción: DOWN, Realidad: UP)
+*   **Diagnóstico Cuantitativo:**
+    *   **RSI (14d):** 47.18 (Neutral).
+    *   **Posición en Bollinger:** Mitad superior del canal, lejos de soportes.
+    *   **VIX:** Elevado pero no en expansión.
+*   **Causa Raíz:** La IA sobreponderó una narrativa textual bajista, ignorando la evidencia cuantitativa que sugería un entorno neutral o de soporte. Las "3 Golden Rules" no fueron suficientes para evitar el sesgo pesimista residual.
+*   **Tipo de Fallo:** Sesgo Cognitivo (Anclaje a la Narrativa).
+
+### B. Fallo del 24/02: "El Analista Indeciso" (Predicción: FLAT, Realidad: UP +40pts)
+*   **Diagnóstico Cuantitativo:**
+    *   **RSI (14d):** 48.72 (Neutral).
+    *   **Bollinger Width:** 3.30% (Squeeze Crítico - Explosión de volatilidad inminente).
+*   **Causa Raíz:** La IA identificó correctamente la condición de compresión extrema pero, por aversión al riesgo, se refugió en la predicción `FLAT`. Falló al no tomar una decisión direccional en el momento de máxima probabilidad de un movimiento violento.
+*   **Tipo de Fallo:** Aversión al Riesgo / Falta de Proactividad.
+
+### C. Próxima Evolución (Regla del Squeeze)
+Para corregir la indecisión, la próxima versión del prompt del agente incluirá una regla de obligado cumplimiento:
+*   **"Regla del Squeeze":** Si el `bb_width` es inferior a 4.0%, el modelo tiene **PROHIBIDO** predecir `FLAT`. Deberá obligatoriamente elegir una dirección (`UP` o `DOWN`) basándose en la tendencia de corto plazo (posición del precio respecto a la EMA de 9 días). Esto fuerza al sistema a capitalizar las oportunidades más claras del mercado.

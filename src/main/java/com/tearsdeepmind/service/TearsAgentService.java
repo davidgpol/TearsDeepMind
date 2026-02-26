@@ -94,6 +94,7 @@ public class TearsAgentService {
             JsonNode spNode = root.path("structured_prediction");
             MarketMemoryRecord.StructuredPrediction prediction = null;
             if (!spNode.isMissingNode()) {
+                String squeezeStatus = spNode.path("squeeze_status").asText("INACTIVE");
                 String direction = spNode.path("direction").asText("FLAT");
                 String volatility = spNode.path("volatility").asText("STABLE");
                 
@@ -101,7 +102,7 @@ public class TearsAgentService {
                 Double rangeBottom = spNode.path("expected_range_bottom").isNumber() ? spNode.path("expected_range_bottom").asDouble() : null;
                 Double target = spNode.path("primary_target").isNumber() ? spNode.path("primary_target").asDouble() : null;
                 
-                prediction = new MarketMemoryRecord.StructuredPrediction(direction, volatility, rangeTop, rangeBottom, target);
+                prediction = new MarketMemoryRecord.StructuredPrediction(squeezeStatus, direction, volatility, rangeTop, rangeBottom, target);
             }
 
             return new MarketMemoryRecord(date, sourceTitle, sentiment, prediction, drivers, thesis, levels);

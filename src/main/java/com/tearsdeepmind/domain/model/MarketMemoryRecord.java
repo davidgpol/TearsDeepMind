@@ -19,6 +19,7 @@ public record MarketMemoryRecord(
     ) {}
 
     public record StructuredPrediction(
+        String squeeze_status,
         String direction,
         String volatility,
         Double expected_range_top,
