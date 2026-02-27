@@ -98,3 +98,14 @@ Tras analizar los fallos de predicción de la IA durante la semana del 18-25 de 
 ### C. Próxima Evolución (Regla del Squeeze)
 Para corregir la indecisión, la próxima versión del prompt del agente incluirá una regla de obligado cumplimiento:
 *   **"Regla del Squeeze":** Si el `bb_width` es inferior a 4.0%, el modelo tiene **PROHIBIDO** predecir `FLAT`. Deberá obligatoriamente elegir una dirección (`UP` o `DOWN`) basándose en la tendencia de corto plazo (posición del precio respecto a la EMA de 9 días). Esto fuerza al sistema a capitalizar las oportunidades más claras del mercado.
+
+---
+
+## 7. Bucle de Retroalimentación Cognitiva (V2.6 - Feb 2026)
+
+Para evitar la repetición de errores sistémicos y dotar a la IA de una "memoria a corto plazo", se ha implementado un bucle evolutivo de ciclo cerrado:
+
+1.  **Auditoría y Autopsia (El Juez):** Cuando `AuditService` detecta que una predicción direccional ha fallado respecto al cierre real del mercado, invoca a Gemini mediante un prompt especializado (`post-mortem-v1.st`). Este prompt obliga a la IA a generar una regla correctiva (lección aprendida) en una sola frase, basándose en los indicadores técnicos del momento del fallo.
+2.  **Memoria de Corto Plazo:** Esta lección se persiste en la columna `notes` de la tabla `analysis.validations`.
+3.  **Inyección Cognitiva (El Cerebro):** Al día siguiente, `PipelineService` recupera las últimas 3 lecciones aprendidas y las inyecta en el bloque `# 🧠 COGNITIVE MEMORY` del prompt `macro-extractor-v1.st`.
+4.  **Decisión Ponderada:** La IA cruza su análisis del día actual con sus fallos recientes. Esto produce un comportamiento orgánico donde la IA ajusta sus convicciones y stops basándose en "el dolor" del error reciente, sin perder el rigor de las reglas estructurales (ej. Squeeze).
