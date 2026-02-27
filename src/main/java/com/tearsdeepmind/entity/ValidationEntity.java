@@ -46,4 +46,6 @@ public class ValidationEntity {
     public UUID getPredictionId() { return predictionId; }
     public BigDecimal getScore() { return score; }
     public String getVerdict() { return verdict; }
+    public String getNotes() { return notes; }
+    public BigDecimal getErrorMargin() { return errorMargin; }
 }

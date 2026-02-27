@@ -10,6 +10,7 @@ import com.tearsdeepmind.repository.QuantMemoryRepository;
 import com.tearsdeepmind.repository.market.AuditLogRepository;
 import com.tearsdeepmind.repository.market.DailyCandleRepository;
 import com.tearsdeepmind.repository.market.IntradayCandleRepository;
+import com.tearsdeepmind.repository.market.TechnicalIndicatorRepository;
 import com.tearsdeepmind.repository.ValidationRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,19 +34,25 @@ public class AuditService {
     private final IntradayCandleRepository intradayCandleRepository;
     private final AuditLogRepository auditLogRepository;
     private final ValidationRepository validationRepository;
+    private final TechnicalIndicatorRepository technicalIndicatorRepository;
+    private final TearsAgentService tearsAgentService;
 
     public AuditService(PredictionRepository predictionRepository,
                         QuantMemoryRepository quantMemoryRepository,
                         DailyCandleRepository dailyCandleRepository,
                         IntradayCandleRepository intradayCandleRepository,
                         AuditLogRepository auditLogRepository,
-                        ValidationRepository validationRepository) {
+                        ValidationRepository validationRepository,
+                        TechnicalIndicatorRepository technicalIndicatorRepository,
+                        TearsAgentService tearsAgentService) {
         this.predictionRepository = predictionRepository;
         this.quantMemoryRepository = quantMemoryRepository;
         this.dailyCandleRepository = dailyCandleRepository;
         this.intradayCandleRepository = intradayCandleRepository;
         this.auditLogRepository = auditLogRepository;
         this.validationRepository = validationRepository;
+        this.technicalIndicatorRepository = technicalIndicatorRepository;
+        this.tearsAgentService = tearsAgentService;
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -105,13 +112,28 @@ public class AuditService {
         AuditLogEntity savedLog = auditLogRepository.save(log);
         logger.info("POST-SAVE CHECK: ID={}, DirCorrect={}", savedLog.getId(), savedLog.getDirectionCorrect());
 
+        // POST-MORTEM (Cognitive Feedback Loop)
+        String cognitiveLesson = "None.";
+        if (!isCorrect) {
+            String actualDir = isFlat ? "FLAT" : (isMarketUp ? "UP" : "DOWN");
+            double change = changePct.doubleValue() * (isMarketUp ? 100 : -100);
+            
+            // Build simple tech context for AI
+            String techContext = technicalIndicatorRepository.findBySymbolAndDate("^GSPC", date)
+                .map(ti -> String.format("RSI: %.2f | BB_Width: %.4f | EMA9: %.2f", ti.getRsi14d(), ti.getBbWidth(), ti.getEma9d()))
+                .orElse("No tech data");
+
+            cognitiveLesson = tearsAgentService.generatePostMortem(predictedDirection, actualDir, change, techContext);
+            logger.warn("Cognitive Post-Mortem Lesson: {}", cognitiveLesson);
+        }
+
         // NEW: Persist detailed ValidationEntity
         com.tearsdeepmind.entity.ValidationEntity validation = new com.tearsdeepmind.entity.ValidationEntity(
             prediction.getId(),
             log.getLevelPrecisionScore(),
             null, // errorMargin (can be calculated later if needed)
             log.getVerdictSummary(),
-            String.format("Pred: %s | Market: %s (%.2f%%)", predictedDirection, isMarketUp ? "UP" : "DOWN", changePct.doubleValue() * 100)
+            cognitiveLesson // Save lesson in notes!
         );
         validationRepository.save(validation);
 

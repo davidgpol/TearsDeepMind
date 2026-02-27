@@ -43,10 +43,29 @@ public class TearsAgentService {
     @Value("classpath:/prompts/report-generator-v1.st")
     private Resource reportPromptResource;
 
+    @Value("classpath:/prompts/post-mortem-v1.st")
+    private Resource postMortemPromptResource;
+
     public TearsAgentService(RestClient.Builder restClientBuilder, ObjectMapper objectMapper, GeminiModelsConfiguration geminiModelsConfig) {
         this.restClient = restClientBuilder.build();
         this.objectMapper = objectMapper;
         this.geminiModelsConfig = geminiModelsConfig;
+    }
+
+    public String generatePostMortem(String predictedDirection, String actualDirection, double dailyChangePct, String technicalContext) {
+        try {
+            String promptTemplate = StreamUtils.copyToString(postMortemPromptResource.getInputStream(), StandardCharsets.UTF_8);
+            String fullPrompt = promptTemplate
+                    .replace("{predicted_direction}", predictedDirection)
+                    .replace("{actual_direction}", actualDirection)
+                    .replace("{daily_change_pct}", String.valueOf(dailyChangePct))
+                    .replace("{technical_context}", technicalContext != null ? technicalContext : "Unknown");
+            
+            return callGemini(fullPrompt, "post_mortem_analysis");
+        } catch (IOException e) {
+            logger.error("Error generating post mortem", e);
+            return "Failed to generate post mortem due to technical error.";
+        }
     }
 
     public QuantMemoryRecord extractQuantIntelligence(String rawText) {
@@ -60,12 +79,13 @@ public class TearsAgentService {
         }
     }
 
-    public MarketMemoryRecord extractMacroIntelligence(String rawText, String technicalContext) {
+    public MarketMemoryRecord extractMacroIntelligence(String rawText, String technicalContext, String cognitiveMemory) {
         try {
             String promptTemplate = StreamUtils.copyToString(macroPromptResource.getInputStream(), StandardCharsets.UTF_8);
             String fullPrompt = promptTemplate
                     .replace("{raw_macro_data}", rawText)
-                    .replace("{technical_context}", technicalContext != null ? technicalContext : "No technical data available.");
+                    .replace("{technical_context}", technicalContext != null ? technicalContext : "No technical data available.")
+                    .replace("{cognitive_memory}", cognitiveMemory != null ? cognitiveMemory : "No recent errors.");
             
             String jsonResponse = callGemini(fullPrompt, "macro_extraction");
             

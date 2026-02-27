@@ -43,6 +43,7 @@ public class PipelineService {
     private final PredictionRepository predictionRepository;
     private final QuantSnapshotRepository quantSnapshotRepository;
     private final com.tearsdeepmind.service.market.VontobelScannerService vontobelScannerService;
+    private final com.tearsdeepmind.repository.ValidationRepository validationRepository;
 
     public PipelineService(CrawlerService crawlerService, 
                            TearsAgentService tearsAgentService, 
@@ -59,7 +60,8 @@ public class PipelineService {
                            com.tearsdeepmind.repository.market.DailyCandleRepository dailyCandleRepository,
                            PredictionRepository predictionRepository,
                            QuantSnapshotRepository quantSnapshotRepository,
-                           com.tearsdeepmind.service.market.VontobelScannerService vontobelScannerService) {
+                           com.tearsdeepmind.service.market.VontobelScannerService vontobelScannerService,
+                           com.tearsdeepmind.repository.ValidationRepository validationRepository) {
         this.crawlerService = crawlerService;
         this.tearsAgentService = tearsAgentService;
         this.ingestionService = ingestionService;
@@ -76,6 +78,7 @@ public class PipelineService {
         this.predictionRepository = predictionRepository;
         this.quantSnapshotRepository = quantSnapshotRepository;
         this.vontobelScannerService = vontobelScannerService;
+        this.validationRepository = validationRepository;
     }
 
     private String getTechnicalContextAsString(LocalDate date) {
@@ -390,10 +393,23 @@ public class PipelineService {
         });
     }
 
+    private String getRecentCognitiveErrors() {
+        java.util.List<com.tearsdeepmind.entity.ValidationEntity> errors = validationRepository.findTop3ByNotesNotOrderByCreatedAtDesc("None.");
+        if (errors.isEmpty()) return "No recent failed predictions found.";
+        
+        StringBuilder sb = new StringBuilder();
+        sb.append("Recent Prediction Failures:\n");
+        for (com.tearsdeepmind.entity.ValidationEntity e : errors) {
+            sb.append("- ").append(e.getNotes()).append("\n");
+        }
+        return sb.toString();
+    }
+
     private Optional<MarketMemoryRecord> processMacro(LocalDate date) {
         return ingestionService.getRawDocument(date, "MACRO").map(doc -> {
             String technicalContext = getTechnicalContextAsString(date);
-            MarketMemoryRecord record = tearsAgentService.extractMacroIntelligence(doc.getContent(), technicalContext);
+            String cognitiveMemory = getRecentCognitiveErrors();
+            MarketMemoryRecord record = tearsAgentService.extractMacroIntelligence(doc.getContent(), technicalContext, cognitiveMemory);
             dailyAnalysisRepository.save(new DailyAnalysisEntity(date, record, doc.getId(), "v1", "gemini-2.0-flash"));
             return record;
         });
