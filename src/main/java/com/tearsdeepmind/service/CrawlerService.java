@@ -148,6 +148,7 @@ public class CrawlerService {
 
     @Async
     public CompletableFuture<Void> extract(String seccion, int dias, String uuid, LocalDate targetDate) {
+        logger.info("[{}] CrawlerService.extract called for section '{}', targetDate: {}", uuid, seccion, targetDate);
         if (targetDate != null) {
             try {
                 String dateFolder = targetDate.format(DateTimeFormatter.ofPattern("yyyyMMdd"));
@@ -218,7 +219,7 @@ public class CrawlerService {
 
     public String startAsyncExtraction(String seccion, int dias) {
         String jobId = UUID.randomUUID().toString().substring(0, 8);
-        ExtractionJob job = new ExtractionJob(jobId, seccion, dias);
+        ExtractionJob job = new ExtractionJob(jobId, seccion, dias, LocalDate.now()); // Use new constructor with current date
         jobStore.saveJob(job);
         CompletableFuture.runAsync(() -> orchestrateAsyncJob(job), browserPool);
         return jobId;
@@ -273,8 +274,9 @@ public class CrawlerService {
             monitoringService.publish(new com.tearsdeepmind.model.CrawlerEvent(uuid, "JOB_STARTED", null, 0, urls.size(), "Discovery complete. Starting parallel downloads."));
 
             List<CompletableFuture<Void>> futures = new ArrayList<>();
+            LocalDate jobTargetDate = job.getTargetDate(); // Get targetDate from the job
             for (String url : urls) {
-                futures.add(CompletableFuture.runAsync(() -> processUrlWithSession(url, session, job), browserPool));
+                futures.add(CompletableFuture.runAsync(() -> processUrlWithSession(url, session, job, jobTargetDate), browserPool));
             }
 
             CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
@@ -295,7 +297,7 @@ public class CrawlerService {
         }
     }
 
-    private void processUrlWithSession(String url, SessionContext session, ExtractionJob job) {
+    private void processUrlWithSession(String url, SessionContext session, ExtractionJob job, LocalDate targetDate) {
         int maxAttempts = 3;
         ExtractionJob.ThreadTaskStatus taskStatus = job.getTaskDetails().computeIfAbsent(url, k -> new ExtractionJob.ThreadTaskStatus(url));
         int attempt = taskStatus.getRetries();
@@ -325,16 +327,28 @@ public class CrawlerService {
                     logger.warn("[{}] No se pudo encontrar el elemento de fecha por CSS estándar.", job.getJobId());
                 }
                 
-                LocalDate threadDate;
+                LocalDate threadDate = null;
                 if (dateStr != null && !dateStr.isEmpty() && !dateStr.contains("hace")) {
                     threadDate = parseDate(dateStr);
-                } else {
-                    // Intento 2: Extraer del título (ej: "13/02")
+                }
+                
+                if (threadDate == null) {
+                    // Intento 2: Extraer del título (ej: "13/02" o "27.02")
                     threadDate = extractDateFromText(title);
-                    if (threadDate == null) {
-                         logger.warn("[{}] No se pudo determinar la fecha del post, usando fecha actual.", job.getJobId());
-                         threadDate = LocalDate.now();
-                    }
+                }
+
+                logger.info("[{}] Debug: Post Title: '{}', Extracted Date: {}, Target Date: {}", 
+                             job.getJobId(), title, threadDate, targetDate);
+
+                // --- Date Validation: Only save if post date is known AND matches target date ---
+                if (threadDate == null || !threadDate.isEqual(targetDate)) {
+                    logger.warn("[{}] Skipping save for URL {}: Post date ({}) does not match target date ({}).", 
+                                 job.getJobId(), url, threadDate, targetDate);
+                    job.markUrlAsFailed(url, "Post date mismatch or unknown"); 
+                    jobStore.saveJob(job);
+                    monitoringService.publish(new com.tearsdeepmind.model.CrawlerEvent(job.getJobId(), "ITEM_SKIPPED", title, job.getCompletedCount(), job.getTotalThreads(), "Post date mismatch or unknown."));
+                    success = true; // Consider as 'processed' for this job's URL list, even if not saved
+                    continue;
                 }
                 
                 Path outputPath = getOutputPath(job.getSection(), threadDate);
@@ -349,7 +363,7 @@ public class CrawlerService {
                 Path filePath = outputPath.resolve(sanitizeFilename(title) + ".txt");
                 String fullContent = "Title: " + title + "\nDate: " + dateStr + "\nURL: " + url + "\n\n" + content;
                 Files.write(filePath, fullContent.getBytes(StandardCharsets.UTF_8));
-                
+
                 // --- Save to Database (DQLM Evolution) ---
                 String docType = job.getSection().equalsIgnoreCase("DailyAnalysis") ? "MACRO" : "QUANT";
                 ingestionService.saveRawDocument(threadDate, docType, fullContent);
@@ -513,16 +527,22 @@ public class CrawlerService {
                     logger.warn("[{}] Could not find date element for URL: {}", uuid, url);
                 }
                 
-                LocalDate threadDate;
+                LocalDate threadDate = null;
                 if (dateStr != null && !dateStr.isEmpty() && !dateStr.contains("hace")) {
                     threadDate = parseDate(dateStr);
-                } else {
+                }
+                if (threadDate == null) {
                     threadDate = extractDateFromText(title);
-                    if (threadDate == null) {
-                        // FALLBACK CRÍTICO: Usar targetDate si existe, sino hoy
-                        threadDate = (targetDate != null) ? targetDate : LocalDate.now();
-                        logger.warn("[{}] Fecha no encontrada en post. Usando fallback: {}", uuid, threadDate);
-                    }
+                }
+
+                logger.info("[{}] Debug: Post Title: '{}', Extracted Date: {}, Target Date: {}", 
+                             uuid, title, threadDate, targetDate);
+
+                // --- Date Validation: Only save if post date is known AND matches target date ---
+                if (threadDate == null || !threadDate.isEqual(targetDate)) {
+                    logger.warn("[{}] Skipping save for URL {}: Post date ({}) does not match target date ({}).", 
+                                 uuid, url, threadDate, targetDate);
+                    continue;
                 }
 
                 Path outputPath = getOutputPath(seccion, threadDate);
@@ -537,7 +557,7 @@ public class CrawlerService {
                 Path filePath = outputPath.resolve(sanitizeFilename(title) + ".txt");
                 String fullContent = "Title: " + title + "\nDate: " + dateStr + "\nURL: " + url + "\n\n" + content;
                 Files.write(filePath, fullContent.getBytes(StandardCharsets.UTF_8));
-                
+
                 // --- Save to Database (DQLM Evolution) ---
                 String docType = seccion.equalsIgnoreCase("DailyAnalysis") ? "MACRO" : "QUANT";
                 ingestionService.saveRawDocument(threadDate, docType, fullContent);
@@ -644,8 +664,8 @@ public class CrawlerService {
 
     private LocalDate extractDateFromText(String text) {
         if (text == null || text.isEmpty()) return null;
-        // Busca patrones como 13/02 o 13_02
-        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("(\\d{1,2})[/_](\\d{1,2})");
+        // Busca patrones como 13/02, 13_02 o 13.02
+        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("(\\d{1,2})[/_\\.](\\d{1,2})");
         java.util.regex.Matcher matcher = pattern.matcher(text);
         if (matcher.find()) {
             try {
@@ -666,13 +686,13 @@ public class CrawlerService {
     
     private LocalDate parseDate(String dateStr) {
         try {
-            if (dateStr == null || dateStr.isEmpty()) return LocalDate.now();
+            if (dateStr == null || dateStr.isEmpty()) return null;
             String cleanDate = dateStr.replace(".", "").toLowerCase().trim();
             // Remove "th", "st", "nd", "rd" from day numbers if present (e.g. "Jan 1st")
             cleanDate = cleanDate.replaceAll("(\\d+)(st|nd|rd|th)", "$1");
             
             String[] parts = cleanDate.split("\\s+");
-            if (parts.length < 3) return LocalDate.now();
+            if (parts.length < 3) return null;
             
             String monthStr = parts[0];
             int day = Integer.parseInt(parts[1].replace(",", ""));
@@ -692,12 +712,12 @@ public class CrawlerService {
                 case "oct":             month = 10; break;
                 case "nov":             month = 11; break;
                 case "dic": case "dec": month = 12; break;
-                default: return LocalDate.now();
+                default: return null;
             }
             return LocalDate.of(year, month, day);
         } catch (Exception e) {
             logger.warn("Date parse error for input '{}': {}", dateStr, e.getMessage());
-            return LocalDate.now();
+            return null;
         }
     }
 

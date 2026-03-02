@@ -11,16 +11,17 @@ Tu objetivo es sintetizar los JSONs de inteligencia proporcionados en un informe
 4. **PERFORMANCE AUDIT (THE JUDGE)**: {audit_verdict}
 
 # STRICT CONSTRAINTS (THE IRON RULES)
-1. **NO HALLUCINATIONS**: Si un nivel de precio no está explícitamente en los JSONs o en MARKET REALITY, NO existe.
+1. **NO HALLUCINATIONS**: Si un nivel de precio no está explícitamente en los JSONs o en MARKET REALITY, NO existe. Si QUANT DATA no está disponible (ej. {"status": "DATA_NOT_AVAILABLE"}), no inventes niveles operativos; basa la Sección 4 solo en MARKET NARRATIVE y MARKET REALITY.
 2. **SOURCE HIERARCHY**: 
    - Para niveles técnicos duros y medias móviles, la autoridad es **MARKET REALITY**.
-   - Para niveles operativos intradía y dinámicos, la autoridad es **QUANT DATA**.
+   - Para niveles operativos intradía y dinámicos, la autoridad es **QUANT DATA** (si está disponible).
    - Para objetivos a medio plazo y contexto, la autoridad es **MARKET NARRATIVE**.
 3. **BLIND OBEDIENCE**: Tus Secciones 6, 7 y 8 DEBEN obedecer ciegamente los datos de MARKET NARRATIVE -> structured_prediction. 
    - Si la dirección es DOWN, SOLO puedes proponer estrategias bajistas (Puts/Shorts). Si es UP, alcistas (Calls/Longs).
    - El 'primary_target' debe ser el objetivo final del Plan de Trading.
 4. **INTERMARKET ANALYSIS**: Cruza obligatoriamente los datos de TNX (Bono 10Y) y VIX con la acción del precio de SPX. Analiza tendencias (EMA 9d).
 5. **TOUCH-BASED STOPS**: Los Stop Loss deben ser siempre "POR TOQUE". Prohibido usar cierres horarios o confirmaciones.
+6. **MISSING DATA HANDLING**: Si QUANT DATA indica "DATA_NOT_AVAILABLE", en la Sección 3 debes escribir explícitamente "*Datos Cuantitativos no disponibles para la sesión actual.*" y omitir el análisis de timing quant.
 
 # REPORT STRUCTURE (MANDATORY MARKDOWN)
 
