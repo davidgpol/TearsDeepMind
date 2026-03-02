@@ -101,11 +101,18 @@ Para corregir la indecisión, la próxima versión del prompt del agente incluir
 
 ---
 
-## 7. Bucle de Retroalimentación Cognitiva (V2.6 - Feb 2026)
+## 8. Resiliencia Operativa y Validación Estricta (V2.8 - Mar 2026)
 
-Para evitar la repetición de errores sistémicos y dotar a la IA de una "memoria a corto plazo", se ha implementado un bucle evolutivo de ciclo cerrado:
+Para garantizar la integridad del análisis, el sistema ha sido blindado contra datos obsoletos de fuentes externas (foros).
 
-1.  **Auditoría y Autopsia (El Juez):** Cuando `AuditService` detecta que una predicción direccional ha fallado respecto al cierre real del mercado, invoca a Gemini mediante un prompt especializado (`post-mortem-v1.st`). Este prompt obliga a la IA a generar una regla correctiva (lección aprendida) en una sola frase, basándose en los indicadores técnicos del momento del fallo.
-2.  **Memoria de Corto Plazo:** Esta lección se persiste en la columna `notes` de la tabla `analysis.validations`.
-3.  **Inyección Cognitiva (El Cerebro):** Al día siguiente, `PipelineService` recupera las últimas 3 lecciones aprendidas y las inyecta en el bloque `# 🧠 COGNITIVE MEMORY` del prompt `macro-extractor-v1.st`.
-4.  **Decisión Ponderada:** La IA cruza su análisis del día actual con sus fallos recientes. Esto produce un comportamiento orgánico donde la IA ajusta sus convicciones y stops basándose en "el dolor" del error reciente, sin perder el rigor de las reglas estructurales (ej. Squeeze).
+### A. Validación Estricta de Fechas (Crawler)
+*   **Rechazo de Stale Data:** El `CrawlerService` ahora extrae la fecha de publicación del post mediante selectores CSS (`.feed-item-post-created-at`) y Regex sobre el título (ej: "27.02").
+*   **Mandato de Coincidencia:** Si la fecha del post no coincide exactamente con la `targetDate` solicitada, el Crawler **descarta el documento** (`ITEM_SKIPPED`). Esto evita que informes del viernes se usen para la sesión del lunes.
+*   **Parser Robusto:** Soporta formatos dinámicos ("hace 2h", "Feb 27, 2026") y estáticos ("27.02", "27/02").
+
+### B. Tolerancia a Fallos (Pipeline)
+*   **Modo Degraded:** Si no hay datos de QUANT disponibles para el día, la Pipeline **no se detiene**. El informe se genera marcando la Sección 3 como `DATA_NOT_AVAILABLE`.
+*   **IA Awareness:** El prompt `report-generator-v1.st` incluye reglas para evitar alucinaciones de niveles operativos cuando falta el input cuantitativo, basando el mapa de niveles exclusivamente en la Narrativa Macro y la Realidad Técnica.
+
+### C. Protocolo de Actualización
+*   **Lazy Loading:** El sistema no re-analiza si ya existe un reporte. Para actualizar un informe incompleto (ej. llegó el Macro pero el Quant no se ha publicado aún), se debe eliminar el reporte previo de `analysis.reports` para que la Pipeline re-dispare el Crawler y la IA.

@@ -369,6 +369,7 @@ public class PipelineService {
     }
 
     private void ensureRawDocumentsPresent(LocalDate date) {
+        logger.info("Ensuring raw documents are present for date: {}", date);
         if (ingestionService.getRawDocument(date, "QUANT").isEmpty() || 
             ingestionService.getRawDocument(date, "MACRO").isEmpty()) {
             
@@ -386,7 +387,12 @@ public class PipelineService {
     }
 
     private Optional<QuantMemoryRecord> processQuant(LocalDate date) {
-        return ingestionService.getRawDocument(date, "QUANT").map(doc -> {
+        Optional<RawDocumentEntity> rawQuantDoc = ingestionService.getRawDocument(date, "QUANT");
+        if (rawQuantDoc.isEmpty()) {
+            logger.warn("No QUANT raw document found for {}. Skipping Quant intelligence extraction.", date);
+            return Optional.empty();
+        }
+        return rawQuantDoc.map(doc -> {
             QuantMemoryRecord record = tearsAgentService.extractQuantIntelligence(doc.getContent());
             quantMemoryRepository.save(new QuantMemoryEntity(date, record, doc.getId(), "v1", "gemini-2.0-flash"));
             return record;
@@ -502,7 +508,6 @@ public class PipelineService {
         }
 
         return String.format("""
-### 7 Estrategias Operativas (Turbos)
 *Obediencia a Narrativa: %s*
 
 **🚀 Selección Inteligente (IA + Scanner Vontobel)**
