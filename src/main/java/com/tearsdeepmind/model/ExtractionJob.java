@@ -10,6 +10,7 @@ public class ExtractionJob {
     private String jobId;
     private String section;
     private int targetDays;
+    private java.time.LocalDate targetDate;
     private int totalThreads; // Added missing field
     private JobStatus status;
     private LocalDateTime startTime;
@@ -29,6 +30,11 @@ public class ExtractionJob {
         this.targetDays = targetDays;
         this.status = JobStatus.INITIALIZING;
         this.startTime = LocalDateTime.now();
+    }
+
+    public ExtractionJob(String jobId, String section, int targetDays, java.time.LocalDate targetDate) {
+        this(jobId, section, targetDays);
+        this.targetDate = targetDate;
     }
 
     // --- Core logic helper ---
@@ -65,6 +71,8 @@ public class ExtractionJob {
     public void setSection(String section) { this.section = section; }
     public int getTargetDays() { return targetDays; }
     public void setTargetDays(int targetDays) { this.targetDays = targetDays; }
+    public java.time.LocalDate getTargetDate() { return targetDate; }
+    public void setTargetDate(java.time.LocalDate targetDate) { this.targetDate = targetDate; }
     public int getTotalThreads() { return totalThreads; }
     public void setTotalThreads(int totalThreads) { this.totalThreads = totalThreads; } // Added missing setter
     public JobStatus getStatus() { return status; }
