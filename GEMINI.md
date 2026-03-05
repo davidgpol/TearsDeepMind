@@ -64,9 +64,11 @@ Esta actualización dota al sistema de capacidad de ejecución precisa mediante 
 *   **Corrección Histórica:** Solución del bug "Future Leak" que usaba siempre la última vela. Backfill completo (~500 días) vía endpoint `/recalculate-indicators`.
 *   **Persistencia:** Datos almacenados en `market_data.technical_indicators` para análisis histórico.
 
-### B. Scanner de Productos (Integración Java Nativa)
-*   **Migración:** Portado del script `sp500_scanner.py` a Java (`VontobelScannerService.java`) usando **Jsoup** para evitar dependencias de Python/Docker.
-*   **Lógica:** Extrae en tiempo real el blob JSON (`__NEXT_DATA__`) de Vontobel para encontrar ISINs, precios y barreras.
+### C. Híbrido Políglota (Scanner)
+*   **Delegación a Python:** Se abandona la implementación nativa con Jsoup. El `VontobelScannerService.java` ahora actúa como un wrapper que invoca al script `spx_scanner.py` (ubicado dentro del contenedor) mediante un `ProcessBuilder` de Java.
+*   **Contrato de Datos (JSON):** El script Python se invoca con el argumento `--format json` para que devuelva una lista de productos válidos en un formato estricto. La salida de logs (`stderr`) se captura por separado para mantener la observabilidad.
+*   **Robustez:** Esta arquitectura híbrida aprovecha la lógica de validación de 5 reglas del script de Python (verificación de ISIN individual contra el backend de Vontobel), que es más robusta y fiable que el scraping de la página de búsqueda.
+*   **Resiliencia:** La invocación desde Java está protegida por un timeout de 60 segundos para evitar que un fallo en el script Python congele toda la pipeline de generación de informes.
 
 ### C. Pricing & Time Engine (Algoritmos Operativos)
 *   **Motor de Precios:** Calcula precios teóricos del Turbo en los niveles de Entrada, Objetivo y Stop usando la fórmula de paridad.
@@ -106,12 +108,18 @@ Para corregir la indecisión, la próxima versión del prompt del agente incluir
 Para garantizar la integridad del análisis, el sistema ha sido blindado contra datos obsoletos de fuentes externas (foros).
 
 ### A. Validación Estricta de Fechas (Crawler)
-*   **Rechazo de Stale Data:** El `CrawlerService` ahora extrae la fecha de publicación del post mediante selectores CSS (`.feed-item-post-created-at`) y Regex sobre el título (ej: "27.02").
-*   **Mandato de Coincidencia:** Si la fecha del post no coincide exactamente con la `targetDate` solicitada, el Crawler **descarta el documento** (`ITEM_SKIPPED`). Esto evita que informes del viernes se usen para la sesión del lunes.
-*   **Parser Robusto:** Soporta formatos dinámicos ("hace 2h", "Feb 27, 2026") y estáticos ("27.02", "27/02").
+*   **Rechazo de Stale Data:** El `CrawlerService` extrae la fecha de publicación del post usando selectores robustos en la vista de detalle (`.mighty-attribution-meta span`, `time`, `.feed-item-post-created-at`).
+*   **Manejo de Tiempo Relativo:** Si el foro devuelve un tiempo relativo (ej: "hace 2 horas", "just now", "10 min ago"), el Crawler lo interpreta automáticamente como un post de la sesión actual (`targetDate`).
+*   **Fallback Semántico Avanzado:** Si falla el DOM y no hay fechas numéricas en el título, el sistema aplica una heurística sobre el título. Si detecta firmas inconfundibles como `"today"`, `"quant levels"`, `"market thoughts"` o `"market dynamics"`, asume la fecha solicitada para evitar que la pipeline aborte.
+*   **Mandato de Coincidencia:** Si la fecha del post no coincide exactamente con la `targetDate` solicitada y falla el fallback, el Crawler **descarta el documento** (`ITEM_SKIPPED`).
 
-### B. Tolerancia a Fallos (Pipeline)
-*   **Modo Degraded:** Si no hay datos de QUANT disponibles para el día, la Pipeline **no se detiene**. El informe se genera marcando la Sección 3 como `DATA_NOT_AVAILABLE`.
+### B. Salvaguardas Matemáticas en Pipeline (Stop Loss)
+*   El `PipelineService` no asume ciegamente los niveles de riesgo sugeridos por la IA si éstos violan la física del trade respecto al precio real de mercado (Spot).
+*   **Sanitizador Dinámico:** Si la IA sugiere un Stop Loss alcista (LONG) que está por encima del precio de entrada, o un Stop Loss bajista (SHORT) que está por debajo de la entrada, el sistema detecta la anomalía (ej. `if stopLoss >= currentSpot` en LONG).
+*   En caso de fallo lógico, descarta la recomendación errónea de la IA y aplica un **Stop de emergencia dinámico del 1%** (por debajo o por encima del precio actual según la dirección) para proteger el capital y permitir la selección de Turbos viables.
+
+### C. Tolerancia a Fallos (Degraded Mode)
+*   Si no hay datos de QUANT disponibles para el día, la Pipeline **no se detiene**. El informe se genera marcando la Sección 3 como `DATA_NOT_AVAILABLE`.
 *   **IA Awareness:** El prompt `report-generator-v1.st` incluye reglas para evitar alucinaciones de niveles operativos cuando falta el input cuantitativo, basando el mapa de niveles exclusivamente en la Narrativa Macro y la Realidad Técnica.
 
 ### C. Protocolo de Actualización
