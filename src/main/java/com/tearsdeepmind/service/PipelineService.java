@@ -225,10 +225,18 @@ public class PipelineService {
 
                             if ("UP".equalsIgnoreCase(direction)) {
                                 stopLossLevel = marketData.structured_prediction().expected_range_bottom();
+                                if (stopLossLevel != null && stopLossLevel >= currentSpot) {
+                                    logger.warn("Turbo Strategy: Invalid LONG stop loss ({} >= spot {}). Applying 1% dynamic fallback.", stopLossLevel, currentSpot);
+                                    stopLossLevel = currentSpot * 0.99;
+                                }
                                 targetLevel = marketData.structured_prediction().primary_target();
                                 scanDirection = "LONG";
                             } else if ("DOWN".equalsIgnoreCase(direction)) {
                                 stopLossLevel = marketData.structured_prediction().expected_range_top();
+                                if (stopLossLevel != null && stopLossLevel <= currentSpot) {
+                                    logger.warn("Turbo Strategy: Invalid SHORT stop loss ({} <= spot {}). Applying 1% dynamic fallback.", stopLossLevel, currentSpot);
+                                    stopLossLevel = currentSpot * 1.01;
+                                }
                                 targetLevel = marketData.structured_prediction().primary_target();
                                 scanDirection = "SHORT";
                             } else if ("FLAT".equalsIgnoreCase(direction)) {
