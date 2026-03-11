@@ -282,7 +282,7 @@ public class PipelineService {
                                     .orElse(null);
                                     
                                 if (bestTurbo != null) {
-                                    turboStrategyBlock = buildTurboStrategyBlock(bestTurbo, currentSpot, targetLevel, stopLossLevel);
+                                    turboStrategyBlock = buildTurboStrategyBlock(bestTurbo, currentSpot, targetLevel, stopLossLevel, date);
                                     if (isNeutralStrategy) {
                                         turboStrategyBlock = "⚠️ **ADVERTENCIA DE RANGO / RIESGO ELEVADO**\n" +
                                             "El mercado se encuentra en fase **NEUTRAL**. Esta estrategia busca una **Reversión a la Media**, operando contra el extremo del rango actual.\n" +
@@ -428,10 +428,54 @@ public class PipelineService {
         return "LONG".equalsIgnoreCase(direction) ? ko < (stopLoss - 10) : ko > (stopLoss + 10);
     }
 
-    private String buildTurboStrategyBlock(com.tearsdeepmind.domain.model.TurboProduct p, Double entrySpx, Double targetSpx, Double stopSpx) {
+    private String buildTurboStrategyBlock(com.tearsdeepmind.domain.model.TurboProduct p, Double entrySpx, Double targetSpx, Double stopSpx, LocalDate date) {
         double ratio = p.ratio() != null ? p.ratio().doubleValue() : 0.01;
         double strike = p.strike().doubleValue();
         boolean isLong = "LONG".equalsIgnoreCase(p.direction());
+
+        String gapContextStr = "*Contexto de Apertura:* Mercado plano (No Gap).";
+        String tpNoteStr = "";
+        String entryTriggerInstruction = String.format("**%.2f**", entrySpx);
+
+        try {
+            // Get previous close
+            Double yesterdayClose = dailyCandleRepository.findBySymbolOrderByDateDesc("^GSPC")
+                    .stream().filter(c -> c.getDate().isBefore(date)).findFirst()
+                    .map(c -> c.getClose().doubleValue())
+                    .orElse(entrySpx);
+
+            // Fetch indicators
+            LocalDate indicatorDate = dailyCandleRepository.findBySymbolOrderByDateDesc("^GSPC")
+                    .stream().filter(c -> c.getDate().isBefore(date)).findFirst()
+                    .map(com.tearsdeepmind.entity.market.DailyCandleEntity::getDate)
+                    .orElse(date.minusDays(1));
+
+            com.tearsdeepmind.entity.market.TechnicalIndicatorEntity spxTech = technicalIndicatorRepository.findBySymbolAndDate("^GSPC", indicatorDate).orElse(null);
+            com.tearsdeepmind.entity.market.TechnicalIndicatorEntity vixTech = technicalIndicatorRepository.findBySymbolAndDate("^VIX", indicatorDate).orElse(null);
+
+            if (spxTech != null && spxTech.getAtr14d() != null) {
+                double atr = spxTech.getAtr14d().doubleValue();
+                
+                // Gap Detection (15% ATR)
+                double gapThreshold = atr * 0.15;
+                if (Math.abs(entrySpx - yesterdayClose) > gapThreshold) {
+                    String gapType = entrySpx > yesterdayClose ? "GAP UP" : "GAP DOWN";
+                    gapContextStr = String.format("⚠️ **Contexto de Apertura:** Mercado con %s Detectado. Esperar retroceso a zona de liquidez o confirmar ruptura.", gapType);
+                    entryTriggerInstruction = String.format("Esperar retroceso/consolidación cerca de **%.2f**", entrySpx);
+                }
+
+                // Take Profit Sanitization (80% ATR)
+                double maxIntradayMove = atr * 0.80;
+                double requestedMove = Math.abs(targetSpx - entrySpx);
+                if (requestedMove > maxIntradayMove) {
+                    double oldTarget = targetSpx;
+                    targetSpx = isLong ? (entrySpx + maxIntradayMove) : (entrySpx - maxIntradayMove);
+                    tpNoteStr = String.format("    *   *Nota:* Objetivo original de IA (%.2f) excedía el rango diario. Ajustado al 80%% del ATR actual (%.2f).\n", oldTarget, atr);
+                }
+            }
+        } catch (Exception e) {
+            logger.warn("Advanced logic engine failed.", e);
+        }
 
         // Pricing Engine
         double entryPrice = Math.max(0.01, isLong ? (entrySpx - strike) * ratio : (strike - entrySpx) * ratio);
@@ -443,13 +487,16 @@ public class PipelineService {
         java.time.LocalTime exitTimeVal = java.time.LocalTime.of(17, 30); // Default fallback
         
         try {
-            LocalDate yesterday = LocalDate.now().minusDays(1);
-            // Fetch indicators
-            com.tearsdeepmind.entity.market.TechnicalIndicatorEntity spxTech = technicalIndicatorRepository.findBySymbolAndDate("^GSPC", yesterday).orElse(null);
-            com.tearsdeepmind.entity.market.TechnicalIndicatorEntity vixTech = technicalIndicatorRepository.findBySymbolAndDate("^VIX", yesterday).orElse(null);
+            LocalDate indicatorDate = dailyCandleRepository.findBySymbolOrderByDateDesc("^GSPC")
+                    .stream().filter(c -> c.getDate().isBefore(date)).findFirst()
+                    .map(com.tearsdeepmind.entity.market.DailyCandleEntity::getDate)
+                    .orElse(date.minusDays(1));
+
+            com.tearsdeepmind.entity.market.TechnicalIndicatorEntity spxTech = technicalIndicatorRepository.findBySymbolAndDate("^GSPC", indicatorDate).orElse(null);
+            com.tearsdeepmind.entity.market.TechnicalIndicatorEntity vixTech = technicalIndicatorRepository.findBySymbolAndDate("^VIX", indicatorDate).orElse(null);
             
             // Need today's VIX for current acceleration
-            Double currentVix = dailyCandleRepository.findBySymbolAndDate("^VIX", LocalDate.now())
+            Double currentVix = dailyCandleRepository.findBySymbolAndDate("^VIX", date)
                     .map(c -> c.getClose().doubleValue())
                     .orElse(vixTech != null && vixTech.getEma9d() != null ? vixTech.getEma9d().doubleValue() : 20.0);
 
@@ -520,12 +567,14 @@ public class PipelineService {
 
 **Plan de Ejecución (Precios Teóricos)**
 
+%s
+
 1.  **Entrada (Trigger)**:
-    *   **SPX Nivel:** **%.2f**
+    *   **SPX Nivel:** %s
     *   **Turbo Precio:** **~%.2f€**
 
 2.  **Salida (Take Profit)**:
-    *   **SPX Nivel:** **%.2f**
+%s    *   **SPX Nivel:** **%.2f**
     *   **Turbo Precio:** **~%.2f€**
 
 3.  **Stop Loss (Emergencia)**:
@@ -539,8 +588,8 @@ public class PipelineService {
 *   **Instrucción**: Si a las %s no se alcanza el objetivo (**%.2f€**), CERRAR LA POSICIÓN a mercado.
 """, 
         p.direction(), p.direction(), p.isin(), p.barrier(), p.leverage(),
-        entrySpx, entryPrice,
-        targetSpx, targetPrice,
+        gapContextStr, entryTriggerInstruction, entryPrice,
+        tpNoteStr, targetSpx, targetPrice,
         stopSpx, stopPrice,
         entryTimeStr, durationStr, exitTimeStr, exitTimeStr, targetPrice);
     }

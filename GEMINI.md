@@ -124,3 +124,21 @@ Para garantizar la integridad del análisis, el sistema ha sido blindado contra 
 
 ### C. Protocolo de Actualización
 *   **Lazy Loading:** El sistema no re-analiza si ya existe un reporte. Para actualizar un informe incompleto (ej. llegó el Macro pero el Quant no se ha publicado aún), se debe eliminar el reporte previo de `analysis.reports` para que la Pipeline re-dispare el Crawler y la IA.
+
+---
+
+## 9. Integridad de Datos y Evolución Táctica (V2.9 - Mar 2026)
+
+Esta actualización resuelve corrupciones históricas y dota al sistema de inteligencia táctica para operar de forma realista en el entorno intradía.
+
+### A. Integridad de Mercado (UPSERT Transaccional)
+*   **Bug "Falso Cierre":** Se descubrió que `MarketDataService` insertaba la vela en curso a mitad de sesión (ej. 10:30 AM) y luego la ignoraba al cierre, corrompiendo la serie de precios.
+*   **Solución (Mutabilidad Controlada):** Se abandonó la inmutabilidad de las entidades `DailyCandleEntity` introduciendo *Setters*. Se implementó un patrón UPSERT transaccional (`@Transactional`) en el flujo de ETL: si la vela de hoy ya existe, sus precios y volumen se actualizan atómicamente con el cierre definitivo de las 16:00 PM, sin fragmentar índices ni generar registros huérfanos.
+
+### B. Gestión Dinámica de Gaps (Apertura)
+*   El motor Java compara el Spot actual contra el cierre del día anterior. Si la diferencia absoluta es mayor al **15% del ATR (14d)**, el sistema declara oficialmente un "Régimen de Gap Operable".
+*   En presencia de un Gap, el motor rechaza fijar un Trigger estático y advierte al usuario en el informe que debe aplicar tácticas de *Opening Range Breakout* o esperar un *Pullback* a zonas de liquidez Quant, adaptándose a la verdadera apertura del mercado americano.
+
+### C. Sanitizador de Avaricia (Take Profit Limit)
+*   La IA a menudo propone un `primary_target` basado en estructuras swing, lo cual es inviable para un producto apalancado intradía como un Turbo, cuyos *Time-Stops* fuerzan cierres rápidos.
+*   **Límite Físico (ATR Cap):** Java recorta matemáticamente cualquier objetivo dictado por la IA que supere el **80% del ATR actual**. Si la IA manda buscar 120 puntos de subida en un día donde el rango promedio son 60, el motor impone forzosamente la toma de beneficios a unos 48 puntos (80%), asegurando la supervivencia y rentabilidad del trade.

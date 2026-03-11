@@ -98,7 +98,8 @@ public class MarketDataService {
         }
     }
 
-    private void processYahooResult(YahooChartResponse.Result result, String symbol, boolean isDaily, long startTimestamp, long endTimestamp) {
+    @org.springframework.transaction.annotation.Transactional
+    protected void processYahooResult(YahooChartResponse.Result result, String symbol, boolean isDaily, long startTimestamp, long endTimestamp) {
         List<Long> timestamps = result.timestamp();
         if (timestamps == null) {
             logger.warn("No timestamps found in Yahoo Finance response for symbol {}", symbol);
@@ -131,7 +132,16 @@ public class MarketDataService {
                 LocalDate date = Instant.ofEpochSecond(currentTimestamp)
                         .atZone(ZoneId.of("America/New_York")).toLocalDate();
                 
-                if (dailyCandleRepository.findBySymbolAndDate(symbol, date).isEmpty()) {
+                java.util.Optional<DailyCandleEntity> existingOpt = dailyCandleRepository.findBySymbolAndDate(symbol, date);
+                if (existingOpt.isPresent()) {
+                    DailyCandleEntity existing = existingOpt.get();
+                    existing.setOpen(BigDecimal.valueOf(opens.get(i)));
+                    existing.setHigh(BigDecimal.valueOf(highs.get(i)));
+                    existing.setLow(BigDecimal.valueOf(lows.get(i)));
+                    existing.setClose(BigDecimal.valueOf(closes.get(i)));
+                    existing.setVolume(volumes.get(i));
+                    dailyCandleRepository.save(existing);
+                } else {
                     DailyCandleEntity entity = new DailyCandleEntity(
                         symbol, date,
                         BigDecimal.valueOf(opens.get(i)),
@@ -141,13 +151,22 @@ public class MarketDataService {
                         volumes.get(i)
                     );
                     dailyCandleRepository.save(entity);
-                    processedCount++;
                 }
+                processedCount++;
             } else {
                 LocalDateTime dateTime = Instant.ofEpochSecond(currentTimestamp)
                         .atZone(ZoneId.of("America/New_York")).toLocalDateTime();
                 
-                if (intradayCandleRepository.findBySymbolAndTimestamp(symbol, dateTime).isEmpty()) {
+                java.util.Optional<IntradayCandleEntity> existingOpt = intradayCandleRepository.findBySymbolAndTimestamp(symbol, dateTime);
+                if (existingOpt.isPresent()) {
+                    IntradayCandleEntity existing = existingOpt.get();
+                    existing.setOpen(BigDecimal.valueOf(opens.get(i)));
+                    existing.setHigh(BigDecimal.valueOf(highs.get(i)));
+                    existing.setLow(BigDecimal.valueOf(lows.get(i)));
+                    existing.setClose(BigDecimal.valueOf(closes.get(i)));
+                    existing.setVolume(volumes.get(i));
+                    intradayCandleRepository.save(existing);
+                } else {
                     IntradayCandleEntity entity = new IntradayCandleEntity(
                         symbol, dateTime,
                         BigDecimal.valueOf(opens.get(i)),
@@ -157,10 +176,10 @@ public class MarketDataService {
                         volumes.get(i)
                     );
                     intradayCandleRepository.save(entity);
-                    processedCount++;
                 }
+                processedCount++;
             }
         }
-        logger.info("Processed and saved {} new candles for symbol {}. Filter applied: {}", processedCount, symbol, !isDaily);
+        logger.info("Processed {} market data records for {}", processedCount, symbol);
     }
 }
