@@ -110,7 +110,7 @@ Para garantizar la integridad del análisis, el sistema ha sido blindado contra 
 ### A. Validación Estricta de Fechas (Crawler)
 *   **Rechazo de Stale Data:** El `CrawlerService` extrae la fecha de publicación del post usando selectores robustos en la vista de detalle (`.mighty-attribution-meta span`, `time`, `.feed-item-post-created-at`).
 *   **Manejo de Tiempo Relativo:** Si el foro devuelve un tiempo relativo (ej: "hace 2 horas", "just now", "10 min ago"), el Crawler lo interpreta automáticamente como un post de la sesión actual (`targetDate`).
-*   **Fallback Semántico Avanzado:** Si falla el DOM y no hay fechas numéricas en el título, el sistema aplica una heurística sobre el título. Si detecta firmas inconfundibles como `"today"`, `"quant levels"`, `"market thoughts"` o `"market dynamics"`, asume la fecha solicitada para evitar que la pipeline aborte.
+*   **Fallback Semántico Avanzado:** Si falla el DOM y no hay fechas numéricas en el título, el sistema aplica una heurística sobre el título. Si detecta firmas inconfundibles como `"today"`, `"quant levels"`, `"market thoughts"` o `"market dynamics"`, asume la fecha solicitada para evitar que la pipeline aborte. Esta capa ha demostrado ser crítica para la resiliencia diaria.
 *   **Mandato de Coincidencia:** Si la fecha del post no coincide exactamente con la `targetDate` solicitada y falla el fallback, el Crawler **descarta el documento** (`ITEM_SKIPPED`).
 
 ### B. Salvaguardas Matemáticas en Pipeline (Stop Loss)
