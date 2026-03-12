@@ -199,7 +199,7 @@ public class PipelineService {
                 }
 
                 // STEP 2.5: Turbo Strategy Selection
-                String turboStrategyBlock = "### 7 Estrategias Operativas (Turbos)\n*No se pudo generar estrategia automática.*";
+                String turboStrategyBlock = "*No se pudo generar estrategia automática.*";
                 
                 if (marketData != null && marketData.structured_prediction() != null) {
                     try {

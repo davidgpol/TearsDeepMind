@@ -318,23 +318,35 @@ public class CrawlerService {
                 String dateStr = "";
                 try {
                     // Intento 1: Nuevo formato de la web (Atributo title en el div de fecha)
-                    WebElement dateEl = workerDriver.findElement(By.cssSelector(".feed-item-post-created-at"));
+                    WebElement dateEl = workerDriver.findElement(By.cssSelector(".mighty-attribution-meta span, .feed-item-post-created-at, time"));
                     dateStr = dateEl.getAttribute("title");
                     if (dateStr == null || dateStr.trim().isEmpty()) {
                         dateStr = dateEl.getText();
                     }
                 } catch (Exception e) {
-                    logger.warn("[{}] No se pudo encontrar el elemento de fecha por CSS estándar.", job.getJobId());
+                    logger.warn("[{}] Could not find date element for URL.", job.getJobId());
                 }
                 
                 LocalDate threadDate = null;
-                if (dateStr != null && !dateStr.isEmpty() && !dateStr.contains("hace")) {
-                    threadDate = parseDate(dateStr);
+                if (dateStr != null && !dateStr.trim().isEmpty()) {
+                    String lowerDate = dateStr.toLowerCase();
+                    if (lowerDate.contains("hace") || lowerDate.contains("ago") || lowerDate.contains("min") || lowerDate.contains("hour") || lowerDate.contains("just") || lowerDate.contains("moment")) {
+                        threadDate = targetDate;
+                    } else {
+                        threadDate = parseDate(dateStr);
+                    }
                 }
                 
                 if (threadDate == null) {
                     // Intento 2: Extraer del título (ej: "13/02" o "27.02")
                     threadDate = extractDateFromText(title);
+                }
+                
+                if (threadDate == null) {
+                    String lowerTitle = title.toLowerCase();
+                    if (lowerTitle.contains("today") || lowerTitle.contains("quant levels") || lowerTitle.contains("market thoughts") || lowerTitle.contains("market dynamics")) {
+                        threadDate = targetDate; // Ampliación semántica para títulos sin fecha
+                    }
                 }
 
                 logger.info("[{}] Debug: Post Title: '{}', Extracted Date: {}, Target Date: {}", 
@@ -518,7 +530,7 @@ public class CrawlerService {
                 
                 String dateStr = "";
                 try {
-                    WebElement dateEl = driver.findElement(By.cssSelector(".feed-item-post-created-at"));
+                    WebElement dateEl = driver.findElement(By.cssSelector(".mighty-attribution-meta span, .feed-item-post-created-at, time"));
                     dateStr = dateEl.getAttribute("title");
                     if (dateStr == null || dateStr.trim().isEmpty()) {
                         dateStr = dateEl.getText();
@@ -526,15 +538,26 @@ public class CrawlerService {
                 } catch (Exception e) {
                     logger.warn("[{}] Could not find date element for URL: {}", uuid, url);
                 }
-                
+
                 LocalDate threadDate = null;
-                if (dateStr != null && !dateStr.isEmpty() && !dateStr.contains("hace")) {
-                    threadDate = parseDate(dateStr);
+                if (dateStr != null && !dateStr.trim().isEmpty()) {
+                    String lowerDate = dateStr.toLowerCase();
+                    if (lowerDate.contains("hace") || lowerDate.contains("ago") || lowerDate.contains("min") || lowerDate.contains("hour") || lowerDate.contains("just") || lowerDate.contains("moment")) {
+                        threadDate = targetDate;
+                    } else {
+                        threadDate = parseDate(dateStr);
+                    }
                 }
                 if (threadDate == null) {
                     threadDate = extractDateFromText(title);
                 }
 
+                if (threadDate == null) {
+                    String lowerTitle = title.toLowerCase();
+                    if (lowerTitle.contains("today") || lowerTitle.contains("quant levels") || lowerTitle.contains("market thoughts") || lowerTitle.contains("market dynamics")) {
+                        threadDate = targetDate;
+                    }
+                }
                 logger.info("[{}] Debug: Post Title: '{}', Extracted Date: {}, Target Date: {}", 
                              uuid, title, threadDate, targetDate);
 
